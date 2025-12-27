@@ -398,10 +398,11 @@ class LMS {
         if (isSubmissionFormat) {
             const submissionPaths = this.generateSubmissionFormatPaths(linkPath);
             possiblePaths = [...submissionPaths];
+            console.log('Generated submission format paths:', submissionPaths);
         }
         
-        // Add general paths
-        possiblePaths.push(
+        // Add general paths (but don't duplicate submission format paths)
+        const generalPaths = [
             linkPath,
             linkPath.replace(/^\.\.\//, ''),
             linkPath.replace(/^\.\//, ''),
@@ -409,7 +410,14 @@ class LMS {
             `books/${fileName}`,
             `resources/${fileName}`,
             fileName
-        );
+        ];
+        
+        // Only add general paths that aren't already in possiblePaths
+        generalPaths.forEach(path => {
+            if (!possiblePaths.includes(path)) {
+                possiblePaths.push(path);
+            }
+        });
         
         // Remove duplicates while preserving order
         const seen = new Set();
@@ -422,6 +430,7 @@ class LMS {
             return true;
         });
         
+        console.log('Final unique paths:', uniquePaths);
         return { paths: uniquePaths, type: 'file', isSubmissionFormat };
     }
 
@@ -462,9 +471,66 @@ class LMS {
                     link.style.textDecoration = 'underline';
                 } else {
                     // Try to fetch from various possible locations
-                    // Set href to # to prevent default navigation
-                    const originalHref = link.getAttribute('href');
-                    link.href = '#';
+                    // Find the best path to set as href (for right-click, hover, browser navigation, etc.)
+                    const pathsToTry = matchResult.paths || [filePath];
+                    let resolvedHref = null;
+                    
+                    console.log('Setting href for link:', filePath, 'Paths available:', pathsToTry);
+                    
+                    // For submission format files, prioritize the zero-padded labs path
+                    if (matchResult.isSubmissionFormat && pathsToTry.length > 0) {
+                        // Find the zero-padded labs path (e.g., labs/Day_01_Lab_02_Submission_Format.md)
+                        const labsPath = pathsToTry.find(p => 
+                            p.startsWith('labs/Day_') && 
+                            p.match(/Day_\d{2}_Lab_\d{2}_Submission_Format\.md$/)
+                        );
+                        if (labsPath) {
+                            resolvedHref = labsPath;
+                            console.log('Found zero-padded labs path:', labsPath);
+                        } else {
+                            // Fallback to first labs path
+                            const firstLabsPath = pathsToTry.find(p => p.startsWith('labs/'));
+                            resolvedHref = firstLabsPath || pathsToTry[0];
+                            console.log('Using fallback path:', resolvedHref);
+                        }
+                    } else if (pathsToTry.length > 0) {
+                        // For other files, prefer labs/ or books/ paths
+                        const preferredPath = pathsToTry.find(p => p.startsWith('labs/') || p.startsWith('books/'));
+                        resolvedHref = preferredPath || pathsToTry[0];
+                    }
+                    
+                    // ALWAYS set href to a valid path - never leave it as #
+                    // Default to first path in array if resolvedHref is still null
+                    if (!resolvedHref && pathsToTry.length > 0) {
+                        resolvedHref = pathsToTry[0];
+                        console.log('Defaulting to first path:', resolvedHref);
+                    }
+                    
+                    // If we still don't have a path, generate one for submission formats
+                    if (!resolvedHref && matchResult.isSubmissionFormat) {
+                        const fileName = filePath.replace(/^.*\//, '');
+                        const dayMatch = fileName.match(/day[_\s]?(\d+)/i);
+                        const labMatch = fileName.match(/lab[_\s]?(\d+)/i);
+                        if (dayMatch && labMatch) {
+                            const dayNum = dayMatch[1].padStart(2, '0');
+                            const labNum = labMatch[1].padStart(2, '0');
+                            resolvedHref = `labs/Day_${dayNum}_Lab_${labNum}_Submission_Format.md`;
+                            console.log('Generated submission format path:', resolvedHref);
+                        }
+                    }
+                    
+                    // Set the href to the actual resolved file path
+                    // This allows right-click, hover preview, and fallback if JS fails
+                    if (resolvedHref) {
+                        link.href = resolvedHref;
+                        link.setAttribute('title', `Open: ${resolvedHref}`);
+                        console.log('✅ Set link href to:', resolvedHref);
+                    } else {
+                        // Last resort: use original filePath
+                        link.href = filePath;
+                        console.log('⚠️ Using original filePath as href:', filePath);
+                    }
+                    
                     link.style.cursor = 'pointer';
                     link.style.color = 'var(--primary-color)';
                     link.style.textDecoration = 'underline';
@@ -477,10 +543,13 @@ class LMS {
                         }
                     }
                     
-                    // Store data on the link element
+                    // Store data on the link element for click handler
                     link.dataset.filePath = filePath;
                     link.dataset.isSubmissionFormat = matchResult.isSubmissionFormat ? 'true' : 'false';
-                    link.dataset.paths = JSON.stringify(matchResult.paths || [filePath]);
+                    link.dataset.paths = JSON.stringify(pathsToTry);
+                    if (resolvedHref) {
+                        link.dataset.resolvedHref = resolvedHref;
+                    }
                     
                     // Create click handler that uses stored data
                     const handleClick = async (e) => {
