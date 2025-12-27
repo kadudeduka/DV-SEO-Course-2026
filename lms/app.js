@@ -295,7 +295,10 @@ class LMS {
     // Helper function to generate possible submission format file names
     generateSubmissionFormatPaths(linkPath) {
         const paths = [];
-        const fileName = linkPath.replace(/^.*\//, '');
+        // Remove .html or .md extension for processing
+        const basePath = linkPath.replace(/\.(html|md)$/, '');
+        const fileName = basePath.replace(/^.*\//, '');
+        const extension = linkPath.match(/\.(html|md)$/)?.[1] || 'html'; // Default to .html for MkDocs
         
         // Extract day and lab numbers if present - handle both underscore and space
         const dayMatch = fileName.match(/day[_\s]?(\d+)/i);
@@ -307,28 +310,35 @@ class LMS {
             const dayRaw = dayMatch[1];
             const labRaw = labMatch[1];
             
-            // Prioritize zero-padded versions first (most common pattern in actual files)
+            // For HTML links (MkDocs), prioritize .html extension
+            if (extension === 'html') {
+                // Prioritize zero-padded versions with .html extension (MkDocs output)
+                paths.push(`labs/Day_${dayNum}_Lab_${labNum}_Submission_Format.html`);
+                paths.push(`Day_${dayNum}_Lab_${labNum}_Submission_Format.html`);
+                
+                // Then try non-padded versions
+                if (dayNum !== dayRaw || labNum !== labRaw) {
+                    paths.push(`labs/Day_${dayRaw}_Lab_${labRaw}_Submission_Format.html`);
+                    paths.push(`Day_${dayRaw}_Lab_${labRaw}_Submission_Format.html`);
+                }
+            }
+            
+            // Also include .md versions for backwards compatibility
             paths.push(`labs/Day_${dayNum}_Lab_${labNum}_Submission_Format.md`);
             paths.push(`Day_${dayNum}_Lab_${labNum}_Submission_Format.md`);
             
-            // Then try non-padded versions
-            if (dayNum !== dayRaw || labNum !== labRaw) {
-                paths.push(`labs/Day_${dayRaw}_Lab_${labRaw}_Submission_Format.md`);
-                paths.push(`Day_${dayRaw}_Lab_${labRaw}_Submission_Format.md`);
-            }
-            
-            // Try with original filename (in case it matches)
-            if (!paths.includes(`labs/${fileName}`)) {
-                paths.push(`labs/${fileName}`);
+            // Try with original filename
+            if (!paths.includes(`labs/${fileName}.${extension}`)) {
+                paths.push(`labs/${fileName}.${extension}`);
             }
         }
         
         // Also try with original path patterns
-        if (!paths.includes(`labs/${fileName}`)) {
-            paths.push(`labs/${fileName}`);
+        if (!paths.includes(`labs/${fileName}.${extension}`)) {
+            paths.push(`labs/${fileName}.${extension}`);
         }
-        if (!paths.includes(fileName)) {
-            paths.push(fileName);
+        if (!paths.includes(`${fileName}.${extension}`)) {
+            paths.push(`${fileName}.${extension}`);
         }
         if (!paths.includes(linkPath)) {
             paths.push(linkPath);
@@ -347,8 +357,8 @@ class LMS {
 
     // Helper function to find matching file
     findMatchingFile(linkPath) {
-        // Extract just the filename
-        const fileName = linkPath.replace(/^.*\//, '');
+        // Extract just the filename (remove .html or .md extension for matching)
+        const fileName = linkPath.replace(/^.*\//, '').replace(/\.(html|md)$/, '');
         const normalizedLinkName = this.normalizeFileName(fileName);
         
         // Check if it's a submission format file
@@ -449,11 +459,50 @@ class LMS {
                 return;
             }
 
-            // Handle markdown file links
-            if (href.endsWith('.md') || href.match(/\.md[?#]/)) {
+            // Handle markdown file links and HTML links (for submission formats)
+            const isHtmlLink = href.endsWith('.html') || href.match(/\.html[?#]/);
+            const isMdLink = href.endsWith('.md') || href.match(/\.md[?#]/);
+            
+            if (isMdLink || isHtmlLink) {
                 // Extract the file path
                 let filePath = href.replace(/^\.\.\//, '').replace(/^\//, '').split('?')[0].split('#')[0];
-                console.log(`Processing markdown link: ${filePath}`);
+                console.log(`Processing ${isHtmlLink ? 'HTML' : 'markdown'} link: ${filePath}`);
+                
+                // For submission format files (.md or .html), handle based on context
+                if (/Submission.*Format/i.test(filePath)) {
+                    const fileName = filePath.replace(/^.*\//, '').replace(/\.(md|html)$/, '');
+                    const dayMatch = fileName.match(/day[_\s]?(\d+)/i);
+                    const labMatch = fileName.match(/lab[_\s]?(\d+)/i);
+                    
+                    if (dayMatch && labMatch) {
+                        const dayNum = dayMatch[1].padStart(2, '0');
+                        const labNum = labMatch[1].padStart(2, '0');
+                        const normalizedBaseName = fileName
+                            .replace(/day[_\s]?\d+/i, `Day_${dayNum}`)
+                            .replace(/lab[_\s]?\d+/i, `Lab_${labNum}`);
+                        
+                        // Check if we're on GitHub Pages (MkDocs) or local
+                        const isGitHubPages = window.location.hostname.includes('github.io');
+                        
+                        if (isGitHubPages || isHtmlLink) {
+                            // For MkDocs/GitHub Pages: use directory path (pretty URLs)
+                            // MkDocs creates: labs/Day_XX_Lab_XX_Submission_Format/
+                            const htmlPath = `labs/${normalizedBaseName}/`;
+                            link.href = htmlPath;
+                            link.setAttribute('title', `Open submission format: ${normalizedBaseName}`);
+                            console.log(`✅ Set HTML path for submission format: ${htmlPath}`);
+                            // Don't intercept - let browser handle HTML page load
+                            return;
+                        } else {
+                            // For local LMS: use normalized .md path
+                            // normalizedBaseName already includes "Submission_Format"
+                            const mdPath = `labs/${normalizedBaseName}.md`;
+                            link.href = mdPath;
+                            console.log(`✅ Set markdown path for submission format: ${mdPath}`);
+                            // Continue with normal markdown link handling - will be intercepted below
+                        }
+                    }
+                }
                 
                 // Find matching file
                 const matchResult = this.findMatchingFile(filePath);
@@ -519,46 +568,65 @@ class LMS {
                         }
                     }
                     
-                    // Set the href to the actual resolved file path
-                    // This allows right-click, hover preview, and fallback if JS fails
-                    if (resolvedHref) {
-                        link.href = resolvedHref;
-                        link.setAttribute('title', `Open: ${resolvedHref}`);
-                        console.log('✅ Set link href to:', resolvedHref);
-                    } else {
-                        // Last resort: use original filePath
-                        link.href = filePath;
-                        console.log('⚠️ Using original filePath as href:', filePath);
-                    }
-                    
-                    link.style.cursor = 'pointer';
-                    link.style.color = 'var(--primary-color)';
-                    link.style.textDecoration = 'underline';
-                    
-                    // Add visual indicator for submission format files
-                    if (matchResult.isSubmissionFormat) {
+                    // For submission format files with .html extension, open as HTML page
+                    if (matchResult.isSubmissionFormat && isHtmlLink && resolvedHref) {
+                        // Convert .md path to .html path for MkDocs-generated pages
+                        const htmlPath = resolvedHref.replace(/\.md$/, '.html');
+                        link.href = htmlPath;
+                        link.setAttribute('title', `Open submission format: ${htmlPath}`);
+                        link.target = '_self'; // Open in same window/tab
+                        console.log('✅ Set HTML link for submission format:', htmlPath);
+                        // Don't intercept - let browser handle HTML page load
                         link.style.fontWeight = '600';
-                        if (!link.innerHTML.includes('📋')) {
-                            link.innerHTML = '📋 ' + link.innerHTML;
+                        link.style.cursor = 'pointer';
+                        link.style.color = 'var(--secondary-color, #f59e0b)';
+                        link.style.textDecoration = 'underline';
+                    } else if (matchResult.isSubmissionFormat && !isHtmlLink && resolvedHref) {
+                        // For .md submission format links, convert to .html
+                        const htmlPath = resolvedHref.replace(/\.md$/, '.html');
+                        link.href = htmlPath;
+                        link.setAttribute('title', `Open submission format: ${htmlPath}`);
+                        link.target = '_self';
+                        console.log('✅ Converted .md to .html for submission format:', htmlPath);
+                        link.style.fontWeight = '600';
+                        link.style.cursor = 'pointer';
+                        link.style.color = 'var(--secondary-color, #f59e0b)';
+                        link.style.textDecoration = 'underline';
+                    } else {
+                        // For non-submission format files, set normal href
+                        if (resolvedHref) {
+                            link.href = resolvedHref;
+                            link.setAttribute('title', `Open: ${resolvedHref}`);
+                            console.log('✅ Set link href to:', resolvedHref);
+                        } else {
+                            // Last resort: use original filePath
+                            link.href = filePath;
+                            console.log('⚠️ Using original filePath as href:', filePath);
                         }
-                    }
-                    
-                    // Store data on the link element for click handler
-                    link.dataset.filePath = filePath;
-                    link.dataset.isSubmissionFormat = matchResult.isSubmissionFormat ? 'true' : 'false';
-                    link.dataset.paths = JSON.stringify(pathsToTry);
-                    if (resolvedHref) {
-                        link.dataset.resolvedHref = resolvedHref;
-                    }
-                    
-                    // Create click handler that uses stored data
-                    const handleClick = async (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
                         
-                        const storedFilePath = e.currentTarget.dataset.filePath;
-                        const isSubmissionFormat = e.currentTarget.dataset.isSubmissionFormat === 'true';
-                        const pathsToTry = JSON.parse(e.currentTarget.dataset.paths || '[]');
+                        link.style.cursor = 'pointer';
+                        link.style.color = 'var(--primary-color)';
+                        link.style.textDecoration = 'underline';
+                    }
+                    
+                    // For submission format files, don't intercept clicks - let them download
+                    if (!matchResult.isSubmissionFormat) {
+                        // Store data on the link element for click handler (only for non-submission files)
+                        link.dataset.filePath = filePath;
+                        link.dataset.isSubmissionFormat = 'false';
+                        link.dataset.paths = JSON.stringify(pathsToTry);
+                        if (resolvedHref) {
+                            link.dataset.resolvedHref = resolvedHref;
+                        }
+                        
+                        // Create click handler that uses stored data (only for non-submission files)
+                        const handleClick = async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            
+                            const storedFilePath = e.currentTarget.dataset.filePath;
+                            const isSubmissionFormat = false;
+                            const pathsToTry = JSON.parse(e.currentTarget.dataset.paths || '[]');
                         let loaded = false;
                         let loadedPath = null;
                         
@@ -666,10 +734,13 @@ class LMS {
                         } else if (loadedPath && loadedPath !== storedFilePath) {
                             console.log(`✅ File loaded from: ${loadedPath} (original: ${storedFilePath})`);
                         }
-                    };
-                    
-                    // Attach the click handler
-                    link.addEventListener('click', handleClick);
+                        };
+                        
+                        // Attach the click handler (only for non-submission format files)
+                        link.addEventListener('click', handleClick);
+                    }
+                    // For submission format files, the href is already set to download URL
+                    // No click handler needed - browser will handle the download
                 }
             } else {
                 // For relative paths without .md extension, try to resolve them
@@ -763,7 +834,7 @@ class LMS {
         let html = `
             <div class="tools-viewer">
                 <h1>🛠️ Tools & When to Use Them</h1>
-                <p class="tools-intro">Complete reference guide for all tools used throughout the SEO Master Course 2025.</p>
+                <p class="tools-intro">Complete reference guide for all tools used throughout the SEO Master Course 2026.</p>
                 
                 <div class="tools-summary">
                     <div class="summary-stat">
@@ -940,6 +1011,15 @@ class LMS {
         const toolsLink = document.getElementById('toolsLink');
         if (toolsLink) {
             toolsLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showToolsView();
+            });
+        }
+
+        // Tools stat card link (on welcome screen)
+        const toolsStatCard = document.getElementById('toolsStatCard');
+        if (toolsStatCard) {
+            toolsStatCard.addEventListener('click', (e) => {
                 e.preventDefault();
                 this.showToolsView();
             });

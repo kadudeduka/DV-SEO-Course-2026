@@ -2,7 +2,7 @@
 // This file contains the complete course structure with all days, chapters, and labs
 
 const courseData = {
-    title: "SEO Master Course 2025",
+    title: "SEO Master Course 2026",
     subtitle: "Comprehensive SEO Training Program",
     totalDays: 20,
     totalChapters: 36,

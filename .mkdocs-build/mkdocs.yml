@@ -1,0 +1,52 @@
+site_name: SEO Master Course 2025
+site_description: Comprehensive SEO training program
+
+docs_dir: ..
+site_dir: ../../dv-seo-publish-site
+
+theme:
+  name: material
+
+nav:
+  - Home: INDEX.md
+  - Submission Formats:
+    - labs/Day_01_Lab_01_Submission_Format.md
+    - labs/Day_01_Lab_02_Submission_Format.md
+    - labs/Day_02_Lab_01_Submission_Format.md
+    - labs/Day_02_Lab_02_Submission_Format.md
+    - labs/Day_03_Lab_01_Submission_Format.md
+    - labs/Day_03_Lab_02_Submission_Format.md
+    - labs/Day_04_Lab_01_Submission_Format.md
+    - labs/Day_04_Lab_02_Submission_Format.md
+    - labs/Day_05_Lab_01_Submission_Format.md
+    - labs/Day_05_Lab_02_Submission_Format.md
+    - labs/Day_06_Lab_01_Submission_Format.md
+    - labs/Day_06_Lab_02_Submission_Format.md
+    - labs/Day_07_Lab_01_Submission_Format.md
+    - labs/Day_07_Lab_02_Submission_Format.md
+    - labs/Day_08_Lab_01_Submission_Format.md
+    - labs/Day_08_Lab_02_Submission_Format.md
+    - labs/Day_09_Lab_01_Submission_Format.md
+    - labs/Day_09_Lab_02_Submission_Format.md
+    - labs/Day_10_Lab_01_Submission_Format.md
+    - labs/Day_10_Lab_02_Submission_Format.md
+    - labs/Day_11_Lab_01_Submission_Format.md
+    - labs/Day_11_Lab_02_Submission_Format.md
+    - labs/Day_12_Lab_01_Submission_Format.md
+    - labs/Day_12_Lab_02_Submission_Format.md
+    - labs/Day_13_Lab_01_Submission_Format.md
+    - labs/Day_13_Lab_02_Submission_Format.md
+    - labs/Day_14_Lab_01_Submission_Format.md
+    - labs/Day_14_Lab_02_Submission_Format.md
+    - labs/Day_15_Lab_01_Submission_Format.md
+    - labs/Day_15_Lab_02_Submission_Format.md
+    - labs/Day_16_Lab_01_Submission_Format.md
+    - labs/Day_16_Lab_02_Submission_Format.md
+    - labs/Day_17_Lab_01_Submission_Format.md
+    - labs/Day_17_Lab_02_Submission_Format.md
+    - labs/Day_18_Lab_01_Submission_Format.md
+    - labs/Day_18_Lab_02_Submission_Format.md
+    - labs/Day_19_Lab_01_Submission_Format.md
+    - labs/Day_19_Lab_02_Submission_Format.md
+    - labs/Day_20_Lab_01_Submission_Format.md
+    - labs/Day_20_Lab_02_Submission_Format.md

@@ -1,4 +1,4 @@
-site_name: SEO Master Course 2025
+site_name: SEO Master Course 2026
 site_description: Comprehensive SEO training program covering fundamentals, technical SEO, content optimization, and advanced strategies
 
 repo_url: https://github.com/kadudeduka/DV-SEO-Course-2026
@@ -6,10 +6,12 @@ repo_name: kadudeduka/DV-SEO-Course-2026
 edit_uri: edit/main/
 
 # Documentation directory - root level (single source of truth)
+# Note: Using '.' requires mkdocs.yml to be in a parent directory or using workaround
+# For GitHub Pages, we'll use a different approach
 docs_dir: .
 
-# Site directory for build output
-site_dir: site
+# Site directory for build output (outside docs_dir)
+site_dir: ../site
 
 # Ensure all assets (visuals, etc.) are included in build
 # MkDocs automatically copies all files from docs_dir to site_dir
@@ -126,6 +128,47 @@ nav:
     - labs/Day_20_Lab_02_Seo_Career_Freelancing_Readiness.md
   - Resources:
     - resources/Tool_Registry.md
+  - Submission Formats:
+    - labs/Day_01_Lab_01_Submission_Format.md
+    - labs/Day_01_Lab_02_Submission_Format.md
+    - labs/Day_02_Lab_01_Submission_Format.md
+    - labs/Day_02_Lab_02_Submission_Format.md
+    - labs/Day_03_Lab_01_Submission_Format.md
+    - labs/Day_03_Lab_02_Submission_Format.md
+    - labs/Day_04_Lab_01_Submission_Format.md
+    - labs/Day_04_Lab_02_Submission_Format.md
+    - labs/Day_05_Lab_01_Submission_Format.md
+    - labs/Day_05_Lab_02_Submission_Format.md
+    - labs/Day_06_Lab_01_Submission_Format.md
+    - labs/Day_06_Lab_02_Submission_Format.md
+    - labs/Day_07_Lab_01_Submission_Format.md
+    - labs/Day_07_Lab_02_Submission_Format.md
+    - labs/Day_08_Lab_01_Submission_Format.md
+    - labs/Day_08_Lab_02_Submission_Format.md
+    - labs/Day_09_Lab_01_Submission_Format.md
+    - labs/Day_09_Lab_02_Submission_Format.md
+    - labs/Day_10_Lab_01_Submission_Format.md
+    - labs/Day_10_Lab_02_Submission_Format.md
+    - labs/Day_11_Lab_01_Submission_Format.md
+    - labs/Day_11_Lab_02_Submission_Format.md
+    - labs/Day_12_Lab_01_Submission_Format.md
+    - labs/Day_12_Lab_02_Submission_Format.md
+    - labs/Day_13_Lab_01_Submission_Format.md
+    - labs/Day_13_Lab_02_Submission_Format.md
+    - labs/Day_14_Lab_01_Submission_Format.md
+    - labs/Day_14_Lab_02_Submission_Format.md
+    - labs/Day_15_Lab_01_Submission_Format.md
+    - labs/Day_15_Lab_02_Submission_Format.md
+    - labs/Day_16_Lab_01_Submission_Format.md
+    - labs/Day_16_Lab_02_Submission_Format.md
+    - labs/Day_17_Lab_01_Submission_Format.md
+    - labs/Day_17_Lab_02_Submission_Format.md
+    - labs/Day_18_Lab_01_Submission_Format.md
+    - labs/Day_18_Lab_02_Submission_Format.md
+    - labs/Day_19_Lab_01_Submission_Format.md
+    - labs/Day_19_Lab_02_Submission_Format.md
+    - labs/Day_20_Lab_01_Submission_Format.md
+    - labs/Day_20_Lab_02_Submission_Format.md
 
 # Markdown extensions
 markdown_extensions:

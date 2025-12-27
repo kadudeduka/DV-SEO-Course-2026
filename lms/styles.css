@@ -1,16 +1,20 @@
 /* LMS Styles - Modern Learning Management System */
 
 :root {
-    --primary-color: #6366f1;
-    --primary-dark: #4f46e5;
-    --secondary-color: #8b5cf6;
+    /* Brand Colors */
+    --primary-color: #1F2A44; /* Primary UI color (Blue) */
+    --primary-dark: #162030;
+    --cta-color: #D45528; /* Primary CTA color (Orange) */
+    --accent-color: #FCC56B; /* Accent color (Yellow) */
+    --text-on-blue: #FFFFFF; /* Text on blue */
+    --text-primary: #1A1A1A; /* Body text */
+    --secondary-color: #D45528; /* Use CTA color as secondary */
     --success-color: #10b981;
     --warning-color: #f59e0b;
     --error-color: #ef4444;
     --bg-primary: #ffffff;
     --bg-secondary: #f9fafb;
     --bg-tertiary: #f3f4f6;
-    --text-primary: #111827;
     --text-secondary: #6b7280;
     --text-tertiary: #9ca3af;
     --border-color: #e5e7eb;
@@ -115,7 +119,7 @@ body {
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+    background: linear-gradient(90deg, var(--primary-color), var(--cta-color));
     border-radius: 4px;
     transition: width 0.3s ease;
     width: 0%;
@@ -229,7 +233,7 @@ body {
 
 .filter-tab.active {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-on-blue);
 }
 
 /* Navigation */
@@ -303,7 +307,7 @@ body {
 
 .nav-item.active {
     background: var(--primary-color);
-    color: white;
+    color: var(--text-on-blue);
 }
 
 .nav-item.completed {
@@ -377,7 +381,7 @@ body {
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 1rem;
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background: linear-gradient(135deg, var(--primary-color), var(--cta-color));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -391,9 +395,18 @@ body {
 
 .course-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 1.5rem;
     margin-bottom: 3rem;
+}
+
+.stat-card-full {
+    grid-column: 1 / -1;
+    padding: 2.5rem 1.5rem;
+}
+
+.stat-card-full .stat-number {
+    font-size: 3.5rem;
 }
 
 .stat-card {
@@ -402,6 +415,24 @@ body {
     border-radius: var(--radius);
     border: 1px solid var(--border-color);
     text-align: center;
+}
+
+.stat-card-link {
+    transition: all 0.2s ease;
+    cursor: pointer;
+}
+
+.stat-card-link:hover {
+    background: var(--cta-color);
+    color: white;
+    border-color: var(--cta-color);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+}
+
+.stat-card-link:hover .stat-number,
+.stat-card-link:hover .stat-label {
+    color: white;
 }
 
 .stat-number {
@@ -447,7 +478,7 @@ body {
     flex-shrink: 0;
     width: 2rem;
     height: 2rem;
-    background: var(--primary-color);
+    background: var(--cta-color);
     color: white;
     border-radius: 50%;
     display: flex;
@@ -469,7 +500,7 @@ body {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    background: var(--cta-color);
     color: white;
     border: none;
     padding: 1rem 2rem;
@@ -767,7 +798,11 @@ body {
     }
     
     .course-stats {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr;
+    }
+    
+    .stat-card-full {
+        grid-column: 1;
     }
     
     .content-header {
