@@ -1,0 +1,5 @@
+# Ignore sibling repositories
+../Course Creation Files/
+../agents/
+../.git/
+../.vscode/
