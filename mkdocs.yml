@@ -1,12 +1,12 @@
 site_name: SEO Master Course 2025
 site_description: Comprehensive SEO training program covering fundamentals, technical SEO, content optimization, and advanced strategies
 
-repo_url: https://github.com/ORG/DV-SEO-Course-2026
-repo_name: ORG/DV-SEO-Course-2026
-edit_uri: edit/main/deliverables/
+repo_url: https://github.com/kadudeduka/DV-SEO-Course-2026
+repo_name: kadudeduka/DV-SEO-Course-2026
+edit_uri: edit/main/
 
-# Documentation directory - points to deliverables folder (single source of truth)
-docs_dir: deliverables
+# Documentation directory - root level (single source of truth)
+docs_dir: .
 
 # Site directory for build output
 site_dir: site

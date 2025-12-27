@@ -3,7 +3,7 @@
 **Last Updated:** 2025-01-27
 **Status:** Active
 
-Welcome to the SEO Master Course 2025. This page provides easy navigation to all course materials organized by day.
+Welcome to the SEO Master Course 2025 content index. This page provides easy navigation to all course materials organized by day.
 
 **How to use this index:**
 - Each day contains **Books** (reading materials) and **Labs** (hands-on exercises)
