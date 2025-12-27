@@ -1,7 +1,7 @@
 /* LMS Styles - Modern Learning Management System */
 
 :root {
-    /* Brand Colors */
+    /* Brand Colors - Only Theme Colors Allowed */
     --primary-color: #1F2A44; /* Primary UI color (Blue) */
     --primary-dark: #162030;
     --cta-color: #D45528; /* Primary CTA color (Orange) */
@@ -9,9 +9,7 @@
     --text-on-blue: #FFFFFF; /* Text on blue */
     --text-primary: #1A1A1A; /* Body text */
     --secondary-color: #D45528; /* Use CTA color as secondary */
-    --success-color: #10b981;
-    --warning-color: #f59e0b;
-    --error-color: #ef4444;
+    /* Neutral colors for UI (grayscale) */
     --bg-primary: #ffffff;
     --bg-secondary: #f9fafb;
     --bg-tertiary: #f3f4f6;
@@ -318,7 +316,7 @@ body {
     content: '✓';
     position: absolute;
     right: 1rem;
-    color: var(--success-color);
+    color: var(--primary-color);
     font-weight: 700;
 }
 
@@ -395,18 +393,9 @@ body {
 
 .course-stats {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1.5rem;
     margin-bottom: 3rem;
-}
-
-.stat-card-full {
-    grid-column: 1 / -1;
-    padding: 2.5rem 1.5rem;
-}
-
-.stat-card-full .stat-number {
-    font-size: 3.5rem;
 }
 
 .stat-card {
@@ -798,11 +787,7 @@ body {
     }
     
     .course-stats {
-        grid-template-columns: 1fr;
-    }
-    
-    .stat-card-full {
-        grid-column: 1;
+        grid-template-columns: repeat(2, 1fr);
     }
     
     .content-header {
@@ -941,18 +926,18 @@ body {
 }
 
 .access-free {
-    background: #d1fae5;
-    color: #065f46;
+    background: var(--accent-color);
+    color: var(--text-primary);
 }
 
 .access-limited-access {
-    background: #fef3c7;
-    color: #92400e;
+    background: var(--accent-color);
+    color: var(--text-primary);
 }
 
 .access-paid {
-    background: #fee2e2;
-    color: #991b1b;
+    background: var(--cta-color);
+    color: var(--text-on-blue);
 }
 
 .used-in-list {

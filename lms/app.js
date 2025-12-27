@@ -1021,6 +1021,7 @@ class LMS {
         if (toolsStatCard) {
             toolsStatCard.addEventListener('click', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 this.showToolsView();
             });
         }
