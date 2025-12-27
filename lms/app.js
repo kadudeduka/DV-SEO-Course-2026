@@ -11,7 +11,6 @@ class LMS {
     init() {
         this.renderNavigation();
         this.attachEventListeners();
-        this.updateProgress();
         this.checkURLParams();
     }
 
@@ -53,18 +52,9 @@ class LMS {
         return total > 0 ? Math.round((completed / total) * 100) : 0;
     }
 
-    // Update progress display
+    // Update progress display (removed - progress indicator removed from UI)
     updateProgress() {
-        const percentage = this.calculateProgress();
-        const progressFill = document.getElementById('progressFill');
-        const progressText = document.getElementById('progressText');
-        
-        if (progressFill) {
-            progressFill.style.width = `${percentage}%`;
-        }
-        if (progressText) {
-            progressText.textContent = `${percentage}% Complete`;
-        }
+        // Progress indicator removed from header
     }
 
     // Render navigation sidebar
@@ -113,9 +103,12 @@ class LMS {
                 }
             });
 
-            daySection.appendChild(dayHeader);
-            daySection.appendChild(dayContent);
-            nav.appendChild(daySection);
+            // Only show day section if it has visible content
+            if (dayContent.children.length > 0) {
+                daySection.appendChild(dayHeader);
+                daySection.appendChild(dayContent);
+                nav.appendChild(daySection);
+            }
         });
 
         // Expand first day by default
@@ -151,7 +144,11 @@ class LMS {
     // Check if item should be shown based on filter
     shouldShowItem(item) {
         if (this.filterType === 'all') return true;
-        return item.type === this.filterType;
+        // Handle plural filter names (books -> book, labs -> lab)
+        const normalizedFilter = this.filterType === 'books' ? 'book' : 
+                                this.filterType === 'labs' ? 'lab' : 
+                                this.filterType;
+        return item.type === normalizedFilter;
     }
 
     // Update navigation state (active, completed)
@@ -221,9 +218,15 @@ class LMS {
 
             // Fix image paths (relative to visuals folder)
             this.fixImagePaths(contentBody);
+            
+            // Fix markdown links to work with LMS
+            this.fixMarkdownLinks(contentBody);
 
             // Update breadcrumb
             this.updateBreadcrumb(content, contentBody);
+
+            // Restore navigation buttons
+            this.restoreNavigationButtons();
 
             // Update navigation buttons
             this.updateNavigationButtons();
@@ -261,6 +264,350 @@ class LMS {
                 // Convert relative paths
                 const newSrc = src.replace('../', '');
                 img.setAttribute('src', newSrc);
+            }
+        });
+    }
+
+    // Helper function to normalize file names for matching
+    normalizeFileName(fileName) {
+        // Remove path prefixes
+        let normalized = fileName.replace(/^.*\//, '');
+        // Normalize Day_1 to Day_01, Lab_1 to Lab_01, etc.
+        normalized = normalized.replace(/Day_(\d+)/gi, (match, num) => {
+            const dayNum = num.padStart(2, '0');
+            return `Day_${dayNum}`;
+        });
+        normalized = normalized.replace(/Lab_(\d+)/gi, (match, num) => {
+            const labNum = num.padStart(2, '0');
+            return `Lab_${labNum}`;
+        });
+        normalized = normalized.replace(/Chapter_(\d+)/gi, (match, num) => {
+            const chNum = num.padStart(2, '0');
+            return `Chapter_${chNum}`;
+        });
+        // Normalize common variations
+        normalized = normalized.replace(/_/g, '_'); // Ensure consistent underscores
+        normalized = normalized.replace(/format/gi, 'Format'); // Normalize format capitalization
+        normalized = normalized.replace(/submission/gi, 'Submission'); // Normalize submission capitalization
+        return normalized.toLowerCase();
+    }
+
+    // Helper function to generate possible submission format file names
+    generateSubmissionFormatPaths(linkPath) {
+        const paths = [];
+        const fileName = linkPath.replace(/^.*\//, '');
+        
+        // Extract day and lab numbers if present - handle both underscore and space
+        const dayMatch = fileName.match(/day[_\s]?(\d+)/i);
+        const labMatch = fileName.match(/lab[_\s]?(\d+)/i);
+        
+        if (dayMatch && labMatch) {
+            const dayNum = dayMatch[1].padStart(2, '0');
+            const labNum = labMatch[1].padStart(2, '0');
+            const dayRaw = dayMatch[1];
+            const labRaw = labMatch[1];
+            
+            // Prioritize zero-padded versions first (most common pattern in actual files)
+            paths.push(`labs/Day_${dayNum}_Lab_${labNum}_Submission_Format.md`);
+            paths.push(`Day_${dayNum}_Lab_${labNum}_Submission_Format.md`);
+            
+            // Then try non-padded versions
+            if (dayNum !== dayRaw || labNum !== labRaw) {
+                paths.push(`labs/Day_${dayRaw}_Lab_${labRaw}_Submission_Format.md`);
+                paths.push(`Day_${dayRaw}_Lab_${labRaw}_Submission_Format.md`);
+            }
+            
+            // Try with original filename (in case it matches)
+            if (!paths.includes(`labs/${fileName}`)) {
+                paths.push(`labs/${fileName}`);
+            }
+        }
+        
+        // Also try with original path patterns
+        if (!paths.includes(`labs/${fileName}`)) {
+            paths.push(`labs/${fileName}`);
+        }
+        if (!paths.includes(fileName)) {
+            paths.push(fileName);
+        }
+        if (!paths.includes(linkPath)) {
+            paths.push(linkPath);
+        }
+        
+        // Remove duplicates while preserving order
+        const seen = new Set();
+        return paths.filter(path => {
+            if (seen.has(path.toLowerCase())) {
+                return false;
+            }
+            seen.add(path.toLowerCase());
+            return true;
+        });
+    }
+
+    // Helper function to find matching file
+    findMatchingFile(linkPath) {
+        // Extract just the filename
+        const fileName = linkPath.replace(/^.*\//, '');
+        const normalizedLinkName = this.normalizeFileName(fileName);
+        
+        // Check if it's a submission format file
+        const isSubmissionFormat = /submission.*format|format.*submission/i.test(fileName);
+        
+        // Try exact match first in course data
+        const allItems = getAllContentItems();
+        let matchingItem = allItems.find(item => {
+            const itemFileName = item.file.replace(/^.*\//, '');
+            return itemFileName.toLowerCase() === fileName.toLowerCase() || 
+                   item.file === linkPath;
+        });
+        
+        if (matchingItem) {
+            return { item: matchingItem, type: 'course' };
+        }
+        
+        // Try normalized match
+        matchingItem = allItems.find(item => {
+            const itemFileName = item.file.replace(/^.*\//, '');
+            return this.normalizeFileName(itemFileName) === normalizedLinkName;
+        });
+        
+        if (matchingItem) {
+            return { item: matchingItem, type: 'course' };
+        }
+        
+        // Try to find file with similar name pattern
+        const partialMatch = allItems.find(item => {
+            const itemFileName = item.file.replace(/^.*\//, '').toLowerCase();
+            // Extract base pattern (Day_XX_Lab_XX or Day_XX_Chapter_XX)
+            const linkPattern = normalizedLinkName.match(/(day_\d+_(?:lab|chapter)_\d+)/);
+            if (linkPattern) {
+                return itemFileName.includes(linkPattern[1]);
+            }
+            return false;
+        });
+        
+        if (partialMatch) {
+            return { item: partialMatch, type: 'course' };
+        }
+        
+        // Generate possible paths
+        let possiblePaths = [];
+        
+        // If it's a submission format file, prioritize submission format paths
+        if (isSubmissionFormat) {
+            const submissionPaths = this.generateSubmissionFormatPaths(linkPath);
+            possiblePaths = [...submissionPaths];
+        }
+        
+        // Add general paths
+        possiblePaths.push(
+            linkPath,
+            linkPath.replace(/^\.\.\//, ''),
+            linkPath.replace(/^\.\//, ''),
+            `labs/${fileName}`,
+            `books/${fileName}`,
+            `resources/${fileName}`,
+            fileName
+        );
+        
+        // Remove duplicates while preserving order
+        const seen = new Set();
+        const uniquePaths = possiblePaths.filter(path => {
+            const key = path.toLowerCase();
+            if (seen.has(key)) {
+                return false;
+            }
+            seen.add(key);
+            return true;
+        });
+        
+        return { paths: uniquePaths, type: 'file', isSubmissionFormat };
+    }
+
+    // Fix markdown links to work with LMS
+    fixMarkdownLinks(contentBody) {
+        if (!contentBody) return;
+
+        const links = contentBody.querySelectorAll('a[href]');
+        console.log(`Found ${links.length} links to process`);
+        
+        links.forEach(link => {
+            const href = link.getAttribute('href');
+            
+            // Skip external links and anchors
+            if (href.startsWith('http://') || href.startsWith('https://') || href.startsWith('#')) {
+                return;
+            }
+
+            // Handle markdown file links
+            if (href.endsWith('.md') || href.match(/\.md[?#]/)) {
+                // Extract the file path
+                let filePath = href.replace(/^\.\.\//, '').replace(/^\//, '').split('?')[0].split('#')[0];
+                console.log(`Processing markdown link: ${filePath}`);
+                
+                // Find matching file
+                const matchResult = this.findMatchingFile(filePath);
+                console.log(`Match result:`, matchResult);
+                
+                if (matchResult.type === 'course' && matchResult.item) {
+                    // Convert to LMS navigation link
+                    link.href = '#';
+                    link.onclick = (e) => {
+                        e.preventDefault();
+                        this.loadContent(matchResult.item.id);
+                    };
+                    link.style.cursor = 'pointer';
+                    link.style.color = 'var(--primary-color)';
+                    link.style.textDecoration = 'underline';
+                } else {
+                    // Try to fetch from various possible locations
+                    // Set href to # to prevent default navigation
+                    const originalHref = link.getAttribute('href');
+                    link.href = '#';
+                    link.style.cursor = 'pointer';
+                    link.style.color = 'var(--primary-color)';
+                    link.style.textDecoration = 'underline';
+                    
+                    // Add visual indicator for submission format files
+                    if (matchResult.isSubmissionFormat) {
+                        link.style.fontWeight = '600';
+                        if (!link.innerHTML.includes('📋')) {
+                            link.innerHTML = '📋 ' + link.innerHTML;
+                        }
+                    }
+                    
+                    // Store data on the link element
+                    link.dataset.filePath = filePath;
+                    link.dataset.isSubmissionFormat = matchResult.isSubmissionFormat ? 'true' : 'false';
+                    link.dataset.paths = JSON.stringify(matchResult.paths || [filePath]);
+                    
+                    // Create click handler that uses stored data
+                    const handleClick = async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        const storedFilePath = e.currentTarget.dataset.filePath;
+                        const isSubmissionFormat = e.currentTarget.dataset.isSubmissionFormat === 'true';
+                        const pathsToTry = JSON.parse(e.currentTarget.dataset.paths || '[]');
+                        let loaded = false;
+                        let loadedPath = null;
+                        
+                        // Show loading indicator
+                        const contentBody = document.getElementById('contentBody');
+                        if (contentBody) {
+                            contentBody.innerHTML = `
+                                <div class="loading-spinner">
+                                    <div class="spinner"></div>
+                                    <p>Loading ${isSubmissionFormat ? 'submission format' : 'file'}...</p>
+                                </div>
+                            `;
+                        }
+                        
+                        // Debug logging
+                        console.log(`🔗 Link clicked: ${storedFilePath}`);
+                        if (isSubmissionFormat) {
+                            console.log(`📋 Attempting to load submission format: ${storedFilePath}`);
+                            console.log('Paths to try:', pathsToTry.slice(0, 5));
+                        }
+                        
+                        for (const path of pathsToTry) {
+                            try {
+                                console.log(`Trying path: ${path}`);
+                                const response = await fetch(path);
+                                if (response.ok) {
+                                    const markdown = await response.text();
+                                    const html = marked.parse(markdown);
+                                    const contentBody = document.getElementById('contentBody');
+                                    if (contentBody) {
+                                        contentBody.innerHTML = html;
+                                        this.fixImagePaths(contentBody);
+                                        this.fixMarkdownLinks(contentBody);
+                                        
+                                        // Add special styling for submission format files
+                                        if (isSubmissionFormat) {
+                                            const contentHeader = contentBody.querySelector('h1');
+                                            if (contentHeader) {
+                                                contentHeader.style.color = 'var(--secondary-color)';
+                                                contentHeader.insertAdjacentHTML('afterend', '<div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 1rem; margin: 1rem 0; border-radius: 4px;"><strong>📋 Submission Format Template</strong><br>This is a template file for completing your lab submission. Fill out all sections as instructed in the corresponding lab exercise.</div>');
+                                            }
+                                        }
+                                        
+                                        // Hide navigation buttons for external content
+                                        const prevBtn = document.getElementById('prevContent');
+                                        const nextBtn = document.getElementById('nextContent');
+                                        const checkboxContainer = document.querySelector('.content-footer');
+                                        if (prevBtn) prevBtn.style.display = 'none';
+                                        if (nextBtn) nextBtn.style.display = 'none';
+                                        if (checkboxContainer) checkboxContainer.style.display = 'none';
+                                        
+                                        // Update breadcrumb
+                                        const breadcrumb = document.getElementById('breadcrumb');
+                                        if (breadcrumb) {
+                                            const linkText = e.currentTarget.textContent.replace('📋 ', '') || storedFilePath;
+                                            const breadcrumbText = isSubmissionFormat ? 
+                                                `📋 ${linkText}` : linkText;
+                                            breadcrumb.innerHTML = `
+                                                <a href="#" onclick="event.preventDefault(); lms.showWelcomeScreen();">Home</a>
+                                                <span> / </span>
+                                                <span>${breadcrumbText}</span>
+                                            `;
+                                        }
+                                        
+                                        // Show content viewer
+                                        const welcomeScreen = document.getElementById('welcomeScreen');
+                                        const contentViewer = document.getElementById('contentViewer');
+                                        if (welcomeScreen) welcomeScreen.style.display = 'none';
+                                        if (contentViewer) contentViewer.style.display = 'block';
+                                        
+                                        loaded = true;
+                                        loadedPath = path;
+                                        console.log(`✅ Successfully loaded: ${path}`);
+                                        break;
+                                    }
+                                } else {
+                                    console.log(`❌ Path failed (${response.status}): ${path}`);
+                                }
+                            } catch (error) {
+                                console.log(`❌ Path error: ${path}`, error.message);
+                                // Continue to next path
+                                continue;
+                            }
+                        }
+                        
+                        if (!loaded) {
+                            console.error('Could not load file from any location:', pathsToTry);
+                            console.error('Original file path:', storedFilePath);
+                            const errorMsg = `Could not load the requested file: ${storedFilePath}\n\nTried:\n${pathsToTry.slice(0, 10).join('\n')}${pathsToTry.length > 10 ? '\n... and more' : ''}`;
+                            alert(errorMsg);
+                            
+                            // Show error in content area
+                            const contentBody = document.getElementById('contentBody');
+                            if (contentBody) {
+                                contentBody.innerHTML = `
+                                    <div style="text-align: center; padding: 3rem; color: var(--error-color);">
+                                        <h2>Error Loading File</h2>
+                                        <p>Could not load: <code>${storedFilePath}</code></p>
+                                        <p style="margin-top: 1rem; font-size: 0.875rem; color: var(--text-secondary);">
+                                            Check the browser console (F12) for details.
+                                        </p>
+                                    </div>
+                                `;
+                            }
+                        } else if (loadedPath && loadedPath !== storedFilePath) {
+                            console.log(`✅ File loaded from: ${loadedPath} (original: ${storedFilePath})`);
+                        }
+                    };
+                    
+                    // Attach the click handler
+                    link.addEventListener('click', handleClick);
+                }
+            } else {
+                // For relative paths without .md extension, try to resolve them
+                if (href.startsWith('../') || href.startsWith('./')) {
+                    const resolvedPath = new URL(href, window.location.href).pathname;
+                    link.href = resolvedPath;
+                }
             }
         });
     }
@@ -333,32 +680,144 @@ class LMS {
         window.history.pushState({}, '', window.location.pathname);
     }
 
+    // Show tools view
+    showToolsView() {
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const contentViewer = document.getElementById('contentViewer');
+        if (welcomeScreen) welcomeScreen.style.display = 'none';
+        if (contentViewer) contentViewer.style.display = 'block';
+
+        const contentBody = document.getElementById('contentBody');
+        if (!contentBody) return;
+
+        const categorized = getToolsByCategory();
+        let html = `
+            <div class="tools-viewer">
+                <h1>🛠️ Tools & When to Use Them</h1>
+                <p class="tools-intro">Complete reference guide for all tools used throughout the SEO Master Course 2025.</p>
+                
+                <div class="tools-summary">
+                    <div class="summary-stat">
+                        <strong>${toolsData.tools.length}</strong> Tools Registered
+                    </div>
+                    <div class="summary-stat">
+                        <strong>${Object.keys(categorized).length}</strong> Categories
+                    </div>
+                </div>
+
+                <div class="tools-container">
+        `;
+
+        Object.keys(categorized).sort().forEach(category => {
+            html += `
+                <section class="tool-category">
+                    <h2>${category}</h2>
+                    <div class="tools-table-wrapper">
+                        <table class="tools-table">
+                            <thead>
+                                <tr>
+                                    <th>Tool Name</th>
+                                    <th>Access Type</th>
+                                    <th>When to Use</th>
+                                    <th>Used In</th>
+                                    <th>Link</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+            `;
+
+            categorized[category].forEach(tool => {
+                html += `
+                    <tr>
+                        <td><strong>${tool.name}</strong></td>
+                        <td><span class="access-badge access-${tool.accessType.toLowerCase().replace(/\s+/g, '-')}">${tool.accessType}</span></td>
+                        <td>${tool.whenToUse}</td>
+                        <td>
+                            <ul class="used-in-list">
+                                ${tool.usedIn.map(usage => `<li>${usage}</li>`).join('')}
+                            </ul>
+                        </td>
+                        <td>
+                            ${tool.url.startsWith('http') ? 
+                                `<a href="${tool.url}" target="_blank" rel="noopener noreferrer" class="tool-link">Visit →</a>` : 
+                                `<span class="tool-link-inline">${tool.url}</span>`
+                            }
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            `;
+        });
+
+        html += `
+                </div>
+            </div>
+        `;
+
+        contentBody.innerHTML = html;
+
+        // Update breadcrumb
+        const breadcrumb = document.getElementById('breadcrumb');
+        if (breadcrumb) {
+            breadcrumb.innerHTML = `
+                <a href="#" onclick="event.preventDefault(); lms.showWelcomeScreen();">Home</a>
+                <span> / </span>
+                <span>Tools & When to Use Them</span>
+            `;
+        }
+
+        // Hide navigation buttons
+        const prevBtn = document.getElementById('prevContent');
+        const nextBtn = document.getElementById('nextContent');
+        if (prevBtn) prevBtn.style.display = 'none';
+        if (nextBtn) nextBtn.style.display = 'none';
+
+        // Hide complete checkbox
+        const checkboxContainer = document.querySelector('.content-footer');
+        if (checkboxContainer) checkboxContainer.style.display = 'none';
+
+        this.currentContentId = null;
+        window.history.pushState({ view: 'tools' }, '', '#tools');
+    }
+
     // Check URL parameters for direct content loading
     checkURLParams() {
         const hash = window.location.hash;
         if (hash && hash.startsWith('#')) {
             const contentId = hash.substring(1);
-            const content = getContentById(contentId);
-            if (content) {
-                this.loadContent(contentId);
+            if (contentId === 'tools') {
+                this.showToolsView();
+            } else {
+                const content = getContentById(contentId);
+                if (content) {
+                    this.loadContent(contentId);
+                }
             }
         }
     }
 
+    // Restore navigation buttons after loading content
+    restoreNavigationButtons() {
+        const prevBtn = document.getElementById('prevContent');
+        const nextBtn = document.getElementById('nextContent');
+        const checkboxContainer = document.querySelector('.content-footer');
+        if (prevBtn) prevBtn.style.display = 'flex';
+        if (nextBtn) nextBtn.style.display = 'flex';
+        if (checkboxContainer) checkboxContainer.style.display = 'block';
+    }
+
     // Attach event listeners
     attachEventListeners() {
-        // Sidebar toggle
-        const toggleBtn = document.getElementById('toggleSidebar');
+        // Sidebar close button (for mobile)
         const closeBtn = document.getElementById('closeSidebar');
         const sidebar = document.getElementById('sidebar');
         const overlay = document.getElementById('overlay');
-
-        if (toggleBtn) {
-            toggleBtn.addEventListener('click', () => {
-                sidebar?.classList.toggle('closed');
-                overlay?.classList.toggle('active');
-            });
-        }
 
         if (closeBtn) {
             closeBtn.addEventListener('click', () => {
@@ -371,6 +830,18 @@ class LMS {
             overlay.addEventListener('click', () => {
                 sidebar?.classList.add('closed');
                 overlay.classList.remove('active');
+            });
+        }
+        
+        // On mobile, allow clicking the logo to open sidebar if closed
+        const logoSection = document.querySelector('.logo-section');
+        if (logoSection && window.innerWidth <= 768) {
+            logoSection.style.cursor = 'pointer';
+            logoSection.addEventListener('click', () => {
+                if (sidebar?.classList.contains('closed')) {
+                    sidebar.classList.remove('closed');
+                    overlay?.classList.add('active');
+                }
             });
         }
 
@@ -393,6 +864,15 @@ class LMS {
                 if (firstItem) {
                     this.loadContent(firstItem.id);
                 }
+            });
+        }
+
+        // Tools link
+        const toolsLink = document.getElementById('toolsLink');
+        if (toolsLink) {
+            toolsLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                this.showToolsView();
             });
         }
 

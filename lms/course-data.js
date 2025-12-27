@@ -6,7 +6,7 @@ const courseData = {
     subtitle: "Comprehensive SEO Training Program",
     totalDays: 20,
     totalChapters: 36,
-    totalLabs: 22,
+    totalLabs: 40,
     
     days: [
         {
@@ -402,7 +402,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day12-lab1",
+                    title: "Backlink Profile Analysis",
+                    file: "labs/Day_12_Lab_01_Backlink_Profile_Analysis.md",
+                    type: "lab"
+                },
+                {
+                    id: "day12-lab2",
+                    title: "Ethical Link Opportunity Identification",
+                    file: "labs/Day_12_Lab_02_Ethical_Link_Opportunity_Identification.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 13,
@@ -415,7 +428,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day13-lab1",
+                    title: "E-E-A-T Gap Analysis",
+                    file: "labs/Day_13_Lab_01_E_E_A_T_Gap_Analysis.md",
+                    type: "lab"
+                },
+                {
+                    id: "day13-lab2",
+                    title: "Helpful Content Evaluation",
+                    file: "labs/Day_13_Lab_02_Helpful_Content_Evaluation.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 14,
@@ -428,7 +454,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day14-lab1",
+                    title: "Technical On-Page SEO Audit",
+                    file: "labs/Day_14_Lab_01_Technical_On_Page_Seo_Audit.md",
+                    type: "lab"
+                },
+                {
+                    id: "day14-lab2",
+                    title: "Content Authority Audit",
+                    file: "labs/Day_14_Lab_02_Content_Authority_Audit.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 15,
@@ -441,7 +480,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day15-lab1",
+                    title: "Traffic Drop Diagnosis",
+                    file: "labs/Day_15_Lab_01_Traffic_Drop_Diagnosis.md",
+                    type: "lab"
+                },
+                {
+                    id: "day15-lab2",
+                    title: "Issue Isolation & Prioritization",
+                    file: "labs/Day_15_Lab_02_Issue_Isolation_Prioritization.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 16,
@@ -454,7 +506,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day16-lab1",
+                    title: "Algorithm Impact Analysis",
+                    file: "labs/Day_16_Lab_01_Algorithm_Impact_Analysis.md",
+                    type: "lab"
+                },
+                {
+                    id: "day16-lab2",
+                    title: "Penalty Identification & Response",
+                    file: "labs/Day_16_Lab_02_Penalty_Identification_Response.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 17,
@@ -467,7 +532,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day17-lab1",
+                    title: "Corporate Website SEO Strategy Design",
+                    file: "labs/Day_17_Lab_01_Corporate_Website_Seo_Strategy_Design.md",
+                    type: "lab"
+                },
+                {
+                    id: "day17-lab2",
+                    title: "Content Website Growth Planning",
+                    file: "labs/Day_17_Lab_02_Content_Website_Growth_Planning.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 18,
@@ -480,7 +558,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day18-lab1",
+                    title: "Ecommerce Category & Product SEO Audit",
+                    file: "labs/Day_18_Lab_01_Ecommerce_Category_Product_Seo_Audit.md",
+                    type: "lab"
+                },
+                {
+                    id: "day18-lab2",
+                    title: "SEO Reporting & Dashboard Creation",
+                    file: "labs/Day_18_Lab_02_Seo_Reporting_Dashboard_Creation.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 19,
@@ -493,7 +584,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day19-lab1",
+                    title: "AI-Assisted SEO Workflow Design",
+                    file: "labs/Day_19_Lab_01_Ai_Assisted_Seo_Workflow_Design.md",
+                    type: "lab"
+                },
+                {
+                    id: "day19-lab2",
+                    title: "Programmatic SEO Opportunity Identification",
+                    file: "labs/Day_19_Lab_02_Programmatic_Seo_Opportunity_Identification.md",
+                    type: "lab"
+                }
+            ]
         },
         {
             day: 20,
@@ -506,7 +610,20 @@ const courseData = {
                     type: "book"
                 }
             ],
-            labs: []
+            labs: [
+                {
+                    id: "day20-lab1",
+                    title: "AEO SERP Feature Optimization",
+                    file: "labs/Day_20_Lab_01_Aeo_Serp_Feature_Optimization.md",
+                    type: "lab"
+                },
+                {
+                    id: "day20-lab2",
+                    title: "SEO Career & Freelancing Readiness",
+                    file: "labs/Day_20_Lab_02_Seo_Career_Freelancing_Readiness.md",
+                    type: "lab"
+                }
+            ]
         }
     ]
 };
@@ -541,5 +658,116 @@ function getNavigationItems(currentId) {
         current: allItems[currentIndex],
         next: currentIndex < allItems.length - 1 ? allItems[currentIndex + 1] : null
     };
+}
+
+// Tools Data Structure
+const toolsData = {
+    tools: [
+        {
+            name: "Google Search",
+            category: "Search/Discovery",
+            accessType: "Free",
+            url: "https://www.google.com",
+            description: "Primary tool for observing real SERPs and understanding the modern search landscape. Enables learners to see how search engines present results to users.",
+            whenToUse: "For SERP analysis, keyword discovery (autocomplete, People Also Ask), intent validation, and general search observations.",
+            usedIn: [
+                "Day 1, Lab 1 - Exploring the Real Search Landscape",
+                "Day 1, Lab 2 - SEO Terminology in Action",
+                "Day 2, Lab 1 - Crawl, Index & Rank Observation (with site: operator)",
+                "Day 2, Lab 2 - Search Intent & SERP Decoding",
+                "Day 3, Lab 1 - Seed Keyword Discovery (Autocomplete)",
+                "Day 3, Lab 2 - Keyword Expansion (Autocomplete, People Also Ask)",
+                "Day 4, Lab 1 - SERP Dissection & Intent Validation",
+                "Day 4, Lab 2 - Keyword-to-Page Mapping (for intent validation)",
+                "Day 9, Lab 1 - Crawl & Index Diagnostics (site: operator)",
+                "Day 11, Lab 2 - JavaScript SEO Risk Assessment (site: operator)",
+                "Day 12, Lab 2 - Ethical Link Opportunity Identification"
+            ]
+        },
+        {
+            name: "Google Search Central",
+            category: "Documentation/Reference",
+            accessType: "Free",
+            url: "https://developers.google.com/search",
+            description: "Official documentation and definitions for SEO concepts. Authoritative source for understanding how Google explains SEO terminology.",
+            whenToUse: "When you need official Google definitions and best practices for SEO concepts and terminology.",
+            usedIn: [
+                "Day 1, Lab 2 - SEO Terminology in Action"
+            ]
+        },
+        {
+            name: "Ahrefs (Limited Access)",
+            category: "Analysis/Computation",
+            accessType: "Limited Access",
+            url: "https://ahrefs.com",
+            description: "Comprehensive SEO tool providing keyword data, search volume estimates, keyword suggestions, and competitive analysis.",
+            whenToUse: "For keyword research, keyword expansion, backlink analysis, and competitive research when limited access is provided during training.",
+            usedIn: [
+                "Day 3, Lab 2 - Keyword Expansion Using Free & Limited Tools",
+                "Day 12, Lab 1 - Backlink Profile Analysis",
+                "Day 12, Lab 2 - Ethical Link Opportunity Identification"
+            ]
+        },
+        {
+            name: "Google PageSpeed Insights",
+            category: "Analysis/Monitoring",
+            accessType: "Free",
+            url: "https://pagespeed.web.dev",
+            description: "Provides Core Web Vitals measurements (LCP, INP, CLS) and performance analysis for any webpage with both lab and field data.",
+            whenToUse: "When analyzing page performance, diagnosing Core Web Vitals issues, and understanding how performance affects SEO.",
+            usedIn: [
+                "Day 10, Lab 1 - Core Web Vitals Diagnosis"
+            ]
+        },
+        {
+            name: "Google Search Console",
+            category: "Analysis/Monitoring",
+            accessType: "Free",
+            url: "https://search.google.com/search-console",
+            description: "Provides crawl statistics, Core Web Vitals field data, index coverage reports, and URL inspection tools.",
+            whenToUse: "For monitoring site health, analyzing crawl efficiency, indexation issues, performance metrics, and diagnosing technical SEO problems.",
+            usedIn: [
+                "Day 8, Lab 1 - Index Coverage Analysis",
+                "Day 9, Lab 1 - Crawl & Index Diagnostics",
+                "Day 9, Lab 2 - Robots.txt & Sitemap Review",
+                "Day 10, Lab 1 - Core Web Vitals Diagnosis",
+                "Day 10, Lab 2 - Performance Issue Prioritization",
+                "Day 11, Lab 1 - Crawl Budget Analysis",
+                "Day 15, Lab 1 - Traffic Drop Diagnosis",
+                "Day 16, Lab 1 - Algorithm Impact Analysis",
+                "Day 16, Lab 2 - Penalty Identification & Response",
+                "Day 18, Lab 2 - SEO Reporting & Dashboard Creation"
+            ]
+        },
+        {
+            name: "Browser Developer Tools",
+            category: "Monitoring/Inspection",
+            accessType: "Free",
+            url: "Built into browsers",
+            description: "Enable inspection of HTML, CSS, JavaScript, network performance, and page rendering. Allow viewing page source and diagnosing technical SEO issues.",
+            whenToUse: "When inspecting pages, diagnosing technical issues, checking rendered content, viewing source code, and understanding how pages load and render.",
+            usedIn: [
+                "Day 8, Lab 2 - Canonical & Duplication Audit",
+                "Day 9, Lab 1 - Crawl & Index Diagnostics",
+                "Day 9, Lab 2 - Robots.txt & Sitemap Review",
+                "Day 10, Lab 1 - Core Web Vitals Diagnosis",
+                "Day 10, Lab 2 - Performance Issue Prioritization",
+                "Day 11, Lab 2 - JavaScript SEO Risk Assessment",
+                "Day 18, Lab 1 - Ecommerce Category & Product SEO Audit"
+            ]
+        }
+    ]
+};
+
+// Helper function to get tools by category
+function getToolsByCategory() {
+    const categorized = {};
+    toolsData.tools.forEach(tool => {
+        if (!categorized[tool.category]) {
+            categorized[tool.category] = [];
+        }
+        categorized[tool.category].push(tool);
+    });
+    return categorized;
 }
 

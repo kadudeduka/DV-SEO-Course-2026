@@ -212,7 +212,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - Evaluating link quality
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 12 are not yet created)*
+
+1. **[Lab 1: Backlink Profile Analysis](labs/Day_12_Lab_01_Backlink_Profile_Analysis.md)**
+
+2. **[Lab 2: Ethical Link Opportunity Identification](labs/Day_12_Lab_02_Ethical_Link_Opportunity_Identification.md)**
 
 ---
 
@@ -228,7 +231,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - AI-generated content risks and safeguards
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 13 are not yet created)*
+
+1. **[Lab 1: E-E-A-T Gap Analysis](labs/Day_13_Lab_01_E_E_A_T_Gap_Analysis.md)**
+
+2. **[Lab 2: Helpful Content Evaluation](labs/Day_13_Lab_02_Helpful_Content_Evaluation.md)**
 
 ---
 
@@ -244,7 +250,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - Turning audit findings into action plans
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 14 are not yet created)*
+
+1. **[Lab 1: Technical On-Page SEO Audit](labs/Day_14_Lab_01_Technical_On_Page_Seo_Audit.md)**
+
+2. **[Lab 2: Content Authority Audit](labs/Day_14_Lab_02_Content_Authority_Audit.md)**
 
 ---
 
@@ -260,7 +269,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - Prioritization: impact and urgency
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 15 are not yet created)*
+
+1. **[Lab 1: Traffic Drop Diagnosis](labs/Day_15_Lab_01_Traffic_Drop_Diagnosis.md)**
+
+2. **[Lab 2: Issue Isolation & Prioritization](labs/Day_15_Lab_02_Issue_Isolation_Prioritization.md)**
 
 ---
 
@@ -276,7 +288,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - Building algorithm-resilient SEO strategies
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 16 are not yet created)*
+
+1. **[Lab 1: Algorithm Impact Analysis](labs/Day_16_Lab_01_Algorithm_Impact_Analysis.md)**
+
+2. **[Lab 2: Penalty Identification & Response](labs/Day_16_Lab_02_Penalty_Identification_Response.md)**
 
 ---
 
@@ -292,7 +307,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - Common mistakes in website type SEO
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 17 are not yet created)*
+
+1. **[Lab 1: Corporate Website SEO Strategy Design](labs/Day_17_Lab_01_Corporate_Website_Seo_Strategy_Design.md)**
+
+2. **[Lab 2: Content Website Growth Planning](labs/Day_17_Lab_02_Content_Website_Growth_Planning.md)**
 
 ---
 
@@ -308,7 +326,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - E-commerce SEO reporting and stakeholder communication
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 18 are not yet created)*
+
+1. **[Lab 1: Ecommerce Category & Product SEO Audit](labs/Day_18_Lab_01_Ecommerce_Category_Product_Seo_Audit.md)**
+
+2. **[Lab 2: SEO Reporting & Dashboard Creation](labs/Day_18_Lab_02_Seo_Reporting_Dashboard_Creation.md)**
 
 ---
 
@@ -324,7 +345,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - Common misunderstandings about AI and automation
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 19 are not yet created)*
+
+1. **[Lab 1: AI-Assisted SEO Workflow Design](labs/Day_19_Lab_01_Ai_Assisted_Seo_Workflow_Design.md)**
+
+2. **[Lab 2: Programmatic SEO Opportunity Identification](labs/Day_19_Lab_02_Programmatic_Seo_Opportunity_Identification.md)**
 
 ---
 
@@ -340,7 +364,10 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
    - Future SEO trends and career readiness
 
 ### 🧪 Labs (Hands-On Exercises)
-*(Labs for Day 20 are not yet created)*
+
+1. **[Lab 1: AEO SERP Feature Optimization](labs/Day_20_Lab_01_Aeo_Serp_Feature_Optimization.md)**
+
+2. **[Lab 2: SEO Career & Freelancing Readiness](labs/Day_20_Lab_02_Seo_Career_Freelancing_Readiness.md)**
 
 ---
 
@@ -348,7 +375,7 @@ Welcome to the SEO Master Course 2025 content index. This page provides easy nav
 
 - **Days:** 20 complete days of content
 - **Books:** 36 chapters across all days
-- **Labs:** 22 hands-on exercises across days 1-11 (more labs to be created)
+- **Labs:** 40 hands-on exercises across all days
 - **Resources:** Tool registry and table of contents
 
 All content is final, reviewed, and ready for learning.

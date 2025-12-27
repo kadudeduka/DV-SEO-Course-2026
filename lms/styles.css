@@ -54,11 +54,22 @@ body {
     height: 100%;
     display: flex;
     align-items: center;
-    justify-content: space-between;
     padding: 0 1.5rem;
 }
 
 .logo-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.header-logo {
+    height: 40px;
+    width: auto;
+    object-fit: contain;
+}
+
+.logo-text {
     display: flex;
     flex-direction: column;
 }
@@ -147,10 +158,18 @@ body {
     overflow-y: auto;
     transition: transform 0.3s ease;
     z-index: 900;
+    display: block;
 }
 
 .sidebar.closed {
     transform: translateX(-100%);
+}
+
+@media (min-width: 769px) {
+    .sidebar {
+        transform: translateX(0) !important;
+        display: block !important;
+    }
 }
 
 .sidebar-header {
@@ -705,6 +724,14 @@ body {
         transform: translateX(0);
     }
     
+    .sidebar:not(.closed) {
+        transform: translateX(-100%);
+    }
+    
+    .sidebar.open:not(.closed) {
+        transform: translateX(0);
+    }
+    
     .main-content {
         margin-left: 0;
         max-width: 100%;
@@ -713,6 +740,14 @@ body {
     
     .btn-close {
         display: flex;
+    }
+    
+    .header-logo {
+        height: 36px;
+    }
+    
+    .logo-section {
+        gap: 0.75rem;
     }
     
     .header-actions {
@@ -753,6 +788,10 @@ body {
 }
 
 @media (max-width: 480px) {
+    .header-logo {
+        height: 32px;
+    }
+    
     .course-title {
         font-size: 1rem;
     }
@@ -767,6 +806,172 @@ body {
     
     .course-stats {
         grid-template-columns: 1fr;
+    }
+}
+
+/* Tools Viewer Styles */
+.tools-viewer {
+    padding: 0;
+}
+
+.tools-viewer h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    border-bottom: none;
+}
+
+.tools-intro {
+    font-size: 1.125rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+.tools-summary {
+    display: flex;
+    gap: 2rem;
+    margin-bottom: 3rem;
+    padding: 1.5rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius);
+}
+
+.summary-stat {
+    font-size: 1rem;
+    color: var(--text-secondary);
+}
+
+.summary-stat strong {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    display: block;
+    margin-bottom: 0.25rem;
+}
+
+.tool-category {
+    margin-bottom: 3rem;
+}
+
+.tool-category h2 {
+    font-size: 1.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tools-table-wrapper {
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+}
+
+.tools-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-primary);
+}
+
+.tools-table thead {
+    background: var(--bg-tertiary);
+}
+
+.tools-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.875rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-primary);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tools-table td {
+    padding: 1rem;
+    border-bottom: 1px solid var(--border-color);
+    vertical-align: top;
+}
+
+.tools-table tr:hover {
+    background: var(--bg-secondary);
+}
+
+.access-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.access-free {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.access-limited-access {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.access-paid {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.used-in-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    list-style: disc;
+    font-size: 0.875rem;
+}
+
+.used-in-list li {
+    margin-bottom: 0.5rem;
+    line-height: 1.5;
+}
+
+.tool-link {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    transition: all 0.2s;
+}
+
+.tool-link:hover {
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
+.tool-link-inline {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+@media (max-width: 768px) {
+    .tools-table {
+        font-size: 0.875rem;
+    }
+    
+    .tools-table th,
+    .tools-table td {
+        padding: 0.75rem 0.5rem;
+    }
+    
+    .tools-table th:nth-child(3),
+    .tools-table td:nth-child(3),
+    .tools-table th:nth-child(4),
+    .tools-table td:nth-child(4) {
+        display: none;
+    }
+    
+    .tools-summary {
+        flex-direction: column;
+        gap: 1rem;
     }
 }
 
