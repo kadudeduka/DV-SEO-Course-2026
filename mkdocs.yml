@@ -1,12 +1,12 @@
 site_name: SEO Master Course 2025
 site_description: Comprehensive SEO training program covering fundamentals, technical SEO, content optimization, and advanced strategies
 
-repo_url: https://github.com/kadudeduka/DV-SEO-Course-2026
-repo_name: kadudeduka/DV-SEO-Course-2026
-edit_uri: edit/main/
+repo_url: https://github.com/ORG/DV-SEO-Course-2026
+repo_name: ORG/DV-SEO-Course-2026
+edit_uri: edit/main/deliverables/
 
-# Documentation directory - root level (single source of truth)
-docs_dir: .
+# Documentation directory - points to deliverables folder (single source of truth)
+docs_dir: deliverables
 
 # Site directory for build output
 site_dir: site
@@ -42,7 +42,7 @@ theme:
   icon:
     repo: fontawesome/brands/github
 
-# Navigation structure - maps root folder structure
+# Navigation structure - maps deliverables folder structure
 nav:
   - Home: INDEX.md
   - Table of Contents: Table_of_Contents.md
