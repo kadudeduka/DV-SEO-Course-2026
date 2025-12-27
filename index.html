@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO Master Course 2025 - Learning Management System</title>
+    <link rel="stylesheet" href="lms/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Header -->
+    <header class="lms-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <h1 class="course-title">SEO Master Course 2025</h1>
+                <span class="course-subtitle">Learning Management System</span>
+            </div>
+            <div class="header-actions">
+                <button class="btn-icon" id="toggleSidebar" aria-label="Toggle navigation">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="3" y1="12" x2="21" y2="12"></line>
+                        <line x1="3" y1="6" x2="21" y2="6"></line>
+                        <line x1="3" y1="18" x2="21" y2="18"></line>
+                    </svg>
+                </button>
+                <div class="progress-indicator">
+                    <span id="progressText">0% Complete</span>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="lms-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h2>Course Content</h2>
+                <button class="btn-close" id="closeSidebar" aria-label="Close sidebar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="filter-tabs">
+                    <button class="filter-tab active" data-filter="all">All</button>
+                    <button class="filter-tab" data-filter="books">📚 Books</button>
+                    <button class="filter-tab" data-filter="labs">🧪 Labs</button>
+                </div>
+
+                <nav class="course-navigation" id="courseNav">
+                    <!-- Dynamically populated by app.js -->
+                </nav>
+
+                <div class="sidebar-footer">
+                    <a href="INDEX.md" class="sidebar-link">📋 Course Index</a>
+                    <a href="Table_of_Contents.md" class="sidebar-link">📑 Table of Contents</a>
+                    <a href="resources/Tool_Registry.md" class="sidebar-link">🛠️ Tools Registry</a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Welcome Screen -->
+            <div class="welcome-screen" id="welcomeScreen">
+                <div class="welcome-content">
+                    <h1>Welcome to SEO Master Course 2025</h1>
+                    <p class="lead">A comprehensive 20-day program covering SEO fundamentals, technical SEO, content optimization, and advanced strategies.</p>
+                    
+                    <div class="course-stats">
+                        <div class="stat-card">
+                            <div class="stat-number">20</div>
+                            <div class="stat-label">Days</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">36</div>
+                            <div class="stat-label">Chapters</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">22</div>
+                            <div class="stat-label">Labs</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-number">86</div>
+                            <div class="stat-label">Visuals</div>
+                        </div>
+                    </div>
+
+                    <div class="quick-start">
+                        <h2>Getting Started</h2>
+                        <div class="instructions">
+                            <div class="instruction-item">
+                                <span class="instruction-number">1</span>
+                                <div>
+                                    <strong>Select a Day</strong>
+                                    <p>Choose any day from the sidebar navigation to begin</p>
+                                </div>
+                            </div>
+                            <div class="instruction-item">
+                                <span class="instruction-number">2</span>
+                                <div>
+                                    <strong>Read Chapters</strong>
+                                    <p>Start with the books/chapters to build your foundation</p>
+                                </div>
+                            </div>
+                            <div class="instruction-item">
+                                <span class="instruction-number">3</span>
+                                <div>
+                                    <strong>Complete Labs</strong>
+                                    <p>Practice what you've learned with hands-on exercises</p>
+                                </div>
+                            </div>
+                            <div class="instruction-item">
+                                <span class="instruction-number">4</span>
+                                <div>
+                                    <strong>Track Progress</strong>
+                                    <p>Your progress is automatically saved in your browser</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn-primary" id="startCourse">
+                        <span>Start Course</span>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content Viewer -->
+            <div class="content-viewer" id="contentViewer" style="display: none;">
+                <div class="content-header">
+                    <div class="breadcrumb" id="breadcrumb"></div>
+                    <div class="content-actions">
+                        <button class="btn-secondary" id="prevContent" disabled>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                            Previous
+                        </button>
+                        <button class="btn-secondary" id="nextContent">
+                            Next
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <article class="content-body" id="contentBody">
+                    <div class="loading-spinner">
+                        <div class="spinner"></div>
+                        <p>Loading content...</p>
+                    </div>
+                </article>
+
+                <div class="content-footer">
+                    <div class="mark-complete">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="markComplete">
+                            <span>Mark as complete</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Overlay for mobile -->
+    <div class="overlay" id="overlay"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="lms/course-data.js"></script>
+    <script src="lms/app.js"></script>
+</body>
+</html>
+
