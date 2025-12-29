@@ -52,9 +52,19 @@ class LMS {
         return total > 0 ? Math.round((completed / total) * 100) : 0;
     }
 
-    // Update progress display (removed - progress indicator removed from UI)
+    // Update progress display in header
     updateProgress() {
-        // Progress indicator removed from header
+        const progress = this.calculateProgress();
+        const progressFill = document.getElementById('headerProgressFill');
+        const progressPercent = document.getElementById('headerProgressPercent');
+        
+        if (progressFill) {
+            progressFill.style.width = `${progress}%`;
+        }
+        
+        if (progressPercent) {
+            progressPercent.textContent = `${progress}%`;
+        }
     }
 
     // Render navigation sidebar
@@ -62,7 +72,24 @@ class LMS {
         const nav = document.getElementById('courseNav');
         if (!nav) return;
 
+        // Save the Course Overview link if it exists
+        const existingOverviewLink = nav.querySelector('.nav-item-overview');
+        
+        // Clear existing content
         nav.innerHTML = '';
+        
+        // Always create and add Course Overview link first
+        const overviewNavItem = document.createElement('a');
+        overviewNavItem.className = 'nav-item nav-item-overview';
+        overviewNavItem.id = 'courseOverviewLink';
+        overviewNavItem.href = '#';
+        overviewNavItem.dataset.id = 'course-overview';
+        overviewNavItem.textContent = '📋 Course Overview';
+        overviewNavItem.addEventListener('click', (e) => {
+            e.preventDefault();
+            this.showCourseOverview();
+        });
+        nav.appendChild(overviewNavItem);
 
         courseData.days.forEach(day => {
             const daySection = document.createElement('div');
@@ -162,7 +189,8 @@ class LMS {
                 item.classList.add('active');
             }
 
-            if (this.isComplete(itemId)) {
+            // Don't mark course overview as completed
+            if (itemId !== 'course-overview' && this.isComplete(itemId)) {
                 item.classList.add('completed');
             } else {
                 item.classList.remove('completed');
@@ -820,6 +848,79 @@ class LMS {
         window.history.pushState({}, '', window.location.pathname);
     }
 
+    // Show course overview
+    async showCourseOverview() {
+        const welcomeScreen = document.getElementById('welcomeScreen');
+        const contentViewer = document.getElementById('contentViewer');
+        if (welcomeScreen) welcomeScreen.style.display = 'none';
+        if (contentViewer) contentViewer.style.display = 'block';
+
+        const contentBody = document.getElementById('contentBody');
+        if (!contentBody) return;
+
+        // Show loading
+        contentBody.innerHTML = `
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p>Loading course overview...</p>
+            </div>
+        `;
+
+        try {
+            const response = await fetch('SEO_Course_Summary.md');
+            if (!response.ok) {
+                throw new Error('Failed to load course overview');
+            }
+            const markdown = await response.text();
+            const html = marked.parse(markdown);
+
+            contentBody.innerHTML = `
+                <div class="course-overview">
+                    ${html}
+                </div>
+            `;
+
+            // Fix markdown links
+            this.fixMarkdownLinks(contentBody);
+
+            // Update breadcrumb
+            const breadcrumb = document.getElementById('breadcrumb');
+            if (breadcrumb) {
+                breadcrumb.innerHTML = `
+                    <a href="#" onclick="event.preventDefault(); lms.showWelcomeScreen();">Home</a>
+                    <span> / </span>
+                    <span>Course Overview</span>
+                `;
+            }
+
+            // Hide navigation buttons
+            const prevBtn = document.getElementById('prevContent');
+            const nextBtn = document.getElementById('nextContent');
+            if (prevBtn) prevBtn.style.display = 'none';
+            if (nextBtn) nextBtn.style.display = 'none';
+
+            // Hide complete checkbox
+            const checkboxContainer = document.querySelector('.content-footer');
+            if (checkboxContainer) checkboxContainer.style.display = 'none';
+
+            // Update URL
+            window.history.pushState({ contentId: 'course-overview' }, '', '#course-overview');
+
+            // Update navigation state
+            this.currentContentId = 'course-overview';
+            this.updateNavigationState();
+        } catch (error) {
+            console.error('Error loading course overview:', error);
+            contentBody.innerHTML = `
+                <div class="error-message">
+                    <h2>Error Loading Course Overview</h2>
+                    <p>Unable to load the course overview. Please try again later.</p>
+                    <button class="btn-primary" onclick="lms.showWelcomeScreen()">Return to Home</button>
+                </div>
+            `;
+        }
+    }
+
     // Show tools view
     showToolsView() {
         const welcomeScreen = document.getElementById('welcomeScreen');
@@ -933,6 +1034,8 @@ class LMS {
             const contentId = hash.substring(1);
             if (contentId === 'tools') {
                 this.showToolsView();
+            } else if (contentId === 'course-overview') {
+                this.showCourseOverview();
             } else {
                 const content = getContentById(contentId);
                 if (content) {

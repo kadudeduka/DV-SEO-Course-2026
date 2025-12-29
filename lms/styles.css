@@ -56,7 +56,9 @@ body {
     height: 100%;
     display: flex;
     align-items: center;
+    justify-content: space-between;
     padding: 0 1.5rem;
+    gap: 2rem;
 }
 
 .logo-section {
@@ -107,12 +109,40 @@ body {
     white-space: nowrap;
 }
 
+.header-progress {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.progress-bar-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 200px;
+}
+
+.progress-bar-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.progress-bar-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
 .progress-bar {
-    width: 150px;
+    flex: 1;
     height: 8px;
     background: var(--bg-tertiary);
     border-radius: 4px;
     overflow: hidden;
+    min-width: 120px;
 }
 
 .progress-fill {
@@ -121,6 +151,14 @@ body {
     border-radius: 4px;
     transition: width 0.3s ease;
     width: 0%;
+}
+
+.progress-percentage {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    white-space: nowrap;
+    min-width: 40px;
 }
 
 .btn-icon {
@@ -320,6 +358,26 @@ body {
     font-weight: 700;
 }
 
+.nav-item-overview {
+    background: var(--bg-secondary);
+    font-weight: 600;
+    margin-bottom: 1rem;
+    padding: 0.875rem 1rem;
+    border-radius: var(--radius);
+    border: 2px solid var(--primary-color);
+    display: block;
+}
+
+.nav-item-overview:hover {
+    background: var(--primary-color);
+    color: var(--text-on-blue);
+}
+
+.nav-item-overview.active {
+    background: var(--primary-color);
+    color: var(--text-on-blue);
+}
+
 .nav-item[data-type="book"]::before {
     content: '📚';
     font-size: 1rem;
@@ -486,6 +544,12 @@ body {
 .instruction-item p {
     color: var(--text-secondary);
     font-size: 0.875rem;
+}
+
+.welcome-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
 }
 
 .btn-primary {
@@ -770,16 +834,18 @@ body {
         gap: 0.75rem;
     }
     
-    .header-actions {
-        gap: 0.75rem;
+    .header-progress {
+        display: none; /* Hide on mobile */
     }
     
-    #progressText {
-        display: none;
+    .welcome-actions {
+        flex-direction: column;
     }
     
-    .progress-bar {
-        width: 100px;
+    .welcome-actions .btn-primary,
+    .welcome-actions .btn-secondary {
+        width: 100%;
+        justify-content: center;
     }
     
     .welcome-content h1 {
@@ -830,6 +896,138 @@ body {
 }
 
 /* Tools Viewer Styles */
+.course-overview {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.course-overview h1 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    border-bottom: 3px solid var(--cta-color);
+    padding-bottom: 1rem;
+}
+
+.course-overview h2 {
+    font-size: 1.75rem;
+    color: var(--primary-color);
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.course-overview h3 {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+}
+
+.course-overview h4 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.course-overview p {
+    line-height: 1.8;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.course-overview ul,
+.course-overview ol {
+    margin: 1rem 0;
+    padding-left: 2rem;
+    line-height: 1.8;
+}
+
+.course-overview li {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.course-overview strong {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.course-overview hr {
+    border: none;
+    border-top: 2px solid var(--border-color);
+    margin: 2rem 0;
+}
+
+.course-overview {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+.course-overview h1 {
+    font-size: 2.5rem;
+    color: var(--primary-color);
+    margin-bottom: 1rem;
+    border-bottom: 3px solid var(--cta-color);
+    padding-bottom: 1rem;
+}
+
+.course-overview h2 {
+    font-size: 1.75rem;
+    color: var(--primary-color);
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.course-overview h3 {
+    font-size: 1.5rem;
+    color: var(--primary-color);
+    margin-top: 2rem;
+    margin-bottom: 0.75rem;
+}
+
+.course-overview h4 {
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.course-overview p {
+    line-height: 1.8;
+    margin-bottom: 1rem;
+    color: var(--text-primary);
+}
+
+.course-overview ul,
+.course-overview ol {
+    margin: 1rem 0;
+    padding-left: 2rem;
+    line-height: 1.8;
+}
+
+.course-overview li {
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.course-overview strong {
+    color: var(--primary-color);
+    font-weight: 600;
+}
+
+.course-overview hr {
+    border: none;
+    border-top: 2px solid var(--border-color);
+    margin: 2rem 0;
+}
+
 .tools-viewer {
     padding: 0;
 }
