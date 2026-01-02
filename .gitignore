@@ -27,5 +27,5 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
-lms/config.local.js
+config/app.config.local.js
 
