@@ -446,6 +446,61 @@ The system is a single-page application (SPA) built with vanilla JavaScript, HTM
 - **Completion Rate:** Track evaluation completion rate
 - **Course Allocation Statistics:** View course allocation statistics per learner
 
+**FR9.6: Lab Evaluation Result Popup**
+- **Purpose:** Display lab evaluation results to learners immediately after trainer completes evaluation
+- **Trigger:** Popup automatically appears when a trainer evaluates a learner's lab submission
+- **Display Location:** Overlay popup/modal on learner's current interface (any page they are viewing)
+- **Visibility:** Only visible to the learner whose lab was evaluated
+- **Content Requirements:**
+  - **Lab Information:**
+    - Course name/title
+    - Lab ID/title
+    - Submission date
+  - **Evaluation Results:**
+    - Status badge (Approved / Needs Revision)
+    - Score (0-10 scale) with visual indicator (e.g., progress bar, stars)
+    - Trainer feedback text (full feedback, scrollable if long)
+    - Evaluation date/time
+  - **Visual Design:**
+    - Success styling for "Approved" status (green theme)
+    - Warning styling for "Needs Revision" status (orange/yellow theme)
+    - Clear, readable typography
+    - Responsive design (mobile, tablet, desktop)
+  - **Actions:**
+    - "View Details" button → Navigate to lab submissions page with this submission highlighted
+    - "Resubmit Lab" button (only shown for "Needs Revision" status) → Navigate to lab submission page
+    - "Close" or "Dismiss" button → Close popup
+    - Click outside popup → Close popup (optional)
+- **Behavior:**
+  - **Real-time Detection:** System checks for new evaluations when learner is active on the platform
+  - **Polling/WebSocket:** Check for new evaluations periodically (e.g., every 30 seconds) or use real-time subscriptions
+  - **One-time Display:** Popup shows once per evaluation (tracked via notification or evaluation timestamp)
+  - **Multiple Evaluations:** If multiple labs are evaluated, show popup for most recent first, then queue others
+  - **Dismissal:** Learner can dismiss popup; evaluation details remain accessible via lab submissions page
+  - **Notification Integration:** Works alongside existing notification system (notification badge updates, popup shows evaluation details)
+- **Technical Requirements:**
+  - **Data Source:** Query `lab_submissions` table filtered by:
+    - `user_id` = current learner ID
+    - `status` IN ('approved', 'needs_revision', 'reviewed')
+    - `reviewed_at` > last checked timestamp
+  - **Performance:** Popup should appear within 2 seconds of evaluation completion (accounting for polling interval)
+  - **Error Handling:** Gracefully handle cases where evaluation data is unavailable
+  - **Accessibility:** 
+    - Keyboard navigation support (ESC to close, Tab to navigate buttons)
+    - ARIA labels for screen readers
+    - Focus trap within popup
+- **User Experience:**
+  - **Non-intrusive:** Popup should not block critical user actions
+  - **Clear Call-to-Action:** Prominent buttons for next steps
+  - **Feedback Preview:** Show first 2-3 lines of feedback in popup, with option to view full feedback
+  - **Celebration:** Subtle animation/confetti for "Approved" status (optional enhancement)
+  - **Context Preservation:** Popup should not navigate away from current page unless user clicks action button
+- **Edge Cases:**
+  - Learner logs in after evaluation → Popup should appear on first page load if evaluation is recent (within 24 hours)
+  - Multiple tabs open → Popup should appear in active tab only
+  - Learner offline during evaluation → Popup appears when learner comes back online and system detects new evaluation
+  - Evaluation updated/changed → Show updated popup if evaluation is modified by trainer
+
 ### FR10: Reporting System
 
 **FR10.1: User-Level Reports**
@@ -1033,6 +1088,7 @@ dv-seo-publish/
 - Progress indicators
 - Active state indicators
 - Hover states
+- Lab evaluation result popup (see FR9.6 for details)
 
 ### UX4: Responsive Design
 

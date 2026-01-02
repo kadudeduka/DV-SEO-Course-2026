@@ -1036,6 +1036,22 @@
             }
         })();
         
+        // Initialize lab evaluation popup for learners
+        // Wait a bit for auth to be ready
+        (async () => {
+            try {
+                // Wait for auth to be ready (check if user is logged in)
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const { initLabEvaluationPopup } = await import('./lms/components/lab-evaluation-popup.js');
+                await initLabEvaluationPopup();
+                console.log('[App] Lab evaluation popup initialized');
+            } catch (error) {
+                console.error('[App] Failed to initialize lab evaluation popup:', error);
+                console.error('[App] Error stack:', error.stack);
+            }
+        })();
+        
         // Handle initial route if hash is already set
         if (window.location.hash) {
             console.log('[App] Initial hash:', window.location.hash);

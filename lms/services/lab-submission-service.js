@@ -263,6 +263,54 @@ class LabSubmissionService {
     }
 
     /**
+     * Get recently evaluated submissions for a learner (within last 24 hours)
+     * Used to detect new evaluations for popup display
+     * @param {string} userId - User ID
+     * @param {string} sinceTimestamp - ISO timestamp to check for evaluations after this time
+     * @returns {Promise<Array>} Array of recently evaluated submission records
+     */
+    async getRecentEvaluations(userId, sinceTimestamp = null) {
+        if (!userId) {
+            throw new Error('User ID is required');
+        }
+
+        // Default to last 24 hours if no timestamp provided
+        const since = sinceTimestamp || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+        console.log('[LabSubmissionService] getRecentEvaluations called:', {
+            userId,
+            sinceTimestamp,
+            since
+        });
+
+        const { data, error } = await this.client
+            .from('lab_submissions')
+            .select('*')
+            .eq('user_id', userId)
+            .in('status', ['reviewed', 'approved', 'needs_revision'])
+            .not('reviewed_at', 'is', null)
+            .gte('reviewed_at', since)
+            .order('reviewed_at', { ascending: false });
+
+        if (error) {
+            console.error('[LabSubmissionService] Error getting recent evaluations:', error);
+            throw new Error('Failed to get recent evaluations: ' + error.message);
+        }
+
+        console.log('[LabSubmissionService] Found recent evaluations:', data?.length || 0);
+        if (data && data.length > 0) {
+            console.log('[LabSubmissionService] Sample evaluation:', {
+                id: data[0].id,
+                status: data[0].status,
+                reviewed_at: data[0].reviewed_at,
+                score: data[0].score
+            });
+        }
+
+        return data || [];
+    }
+
+    /**
      * Get assigned learner IDs for a trainer
      * Only returns Active learners (filters out Inactive, Graduate, Archive)
      * @param {string} trainerId - Trainer ID
