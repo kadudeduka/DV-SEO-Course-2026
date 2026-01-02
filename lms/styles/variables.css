@@ -1,0 +1,337 @@
+/**
+ * Design System - CSS Variables
+ * 
+ * Modern design system inspired by Figma and Asana.
+ * Defines comprehensive design tokens for colors, spacing, typography, 
+ * shadows, animations, and layout elements.
+ * 
+ * Phase 1: Design System Foundation
+ * - Step 1.1: Color Palette & Design Tokens
+ * - Step 1.2: Typography System
+ * - Step 1.3: Spacing & Layout System
+ * - Step 1.4: Shadow & Elevation System
+ * - Step 1.5: Animation & Transition System
+ */
+
+:root {
+    /* ============================================
+       Step 1.1: Color Palette & Design Tokens
+       ============================================ */
+    
+    /* Primary Colors - Modern Blue/Purple Gradient */
+    --color-primary: #6366F1;
+    --color-primary-dark: #4F46E5;
+    --color-primary-light: #818CF8;
+    --color-primary-hover: #4F46E5;
+    --color-primary-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+    
+    /* Brand Colors (aliases for consistency) */
+    --color-brand-primary: #6366F1;
+    --color-brand-secondary: #8B5CF6;
+    --color-brand-primary-light: #C7D2FE;
+    --color-brand-secondary-light: #DDD6FE;
+    --color-brand-gradient: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
+    
+    /* Secondary Colors */
+    --color-secondary: #6B7280;
+    --color-secondary-dark: #4B5563;
+    --color-secondary-light: #9CA3AF;
+    
+    /* Semantic Colors - Success */
+    --color-success: #10B981;
+    --color-success-dark: #059669;
+    --color-success-light: #34D399;
+    --color-success-bg: #D1FAE5;
+    --color-success-text: #065F46;
+    
+    /* Semantic Colors - Warning */
+    --color-warning: #F59E0B;
+    --color-warning-dark: #D97706;
+    --color-warning-light: #FBBF24;
+    --color-warning-bg: #FEF3C7;
+    --color-warning-text: #92400E;
+    
+    /* Semantic Colors - Error */
+    --color-error: #EF4444;
+    --color-error-dark: #DC2626;
+    --color-error-light: #F87171;
+    --color-error-bg: #FEE2E2;
+    --color-error-text: #991B1B;
+    
+    /* Semantic Colors - Info */
+    --color-info: #3B82F6;
+    --color-info-dark: #2563EB;
+    --color-info-light: #60A5FA;
+    --color-info-bg: #DBEAFE;
+    --color-info-text: #1E40AF;
+    
+    /* Background Colors - Soft Whites & Grays */
+    --color-bg-primary: #FFFFFF;
+    --color-bg-secondary: #FAFBFC;
+    --color-bg-tertiary: #F8F9FA;
+    --color-bg-hover: #F3F4F6;
+    --color-bg-active: #E5E7EB;
+    --color-bg-overlay: rgba(0, 0, 0, 0.5);
+    
+    /* Text Colors - Deep Charcoal & Grays */
+    --color-text-primary: #1A1F36;
+    --color-text-secondary: #6B7280;
+    --color-text-tertiary: #9CA3AF;
+    --color-text-inverse: #FFFFFF;
+    --color-text-muted: #6B7280;
+    --color-text-disabled: #D1D5DB;
+    
+    /* Border Colors - Very Light Grays */
+    --color-border: #E5E7EB;
+    --color-border-light: #F3F4F6;
+    --color-border-dark: #D1D5DB;
+    --color-border-focus: #6366F1;
+    
+    /* Dark Mode Colors (for future support) */
+    --color-dark-bg-primary: #111827;
+    --color-dark-bg-secondary: #1F2937;
+    --color-dark-text-primary: #F9FAFB;
+    --color-dark-text-secondary: #D1D5DB;
+    
+    /* ============================================
+       Step 1.2: Typography System
+       ============================================ */
+    
+    /* Font Family - Modern Stack */
+    --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-family-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+    
+    /* Font Sizes - Complete Scale */
+    --font-size-xs: 0.75rem;      /* 12px */
+    --font-size-sm: 0.875rem;    /* 14px */
+    --font-size-md: 1rem;        /* 16px */
+    --font-size-lg: 1.125rem;     /* 18px */
+    --font-size-xl: 1.25rem;     /* 20px */
+    --font-size-2xl: 1.5rem;     /* 24px */
+    --font-size-3xl: 1.875rem;   /* 30px */
+    --font-size-4xl: 2.25rem;    /* 36px */
+    --font-size-5xl: 3rem;       /* 48px */
+    
+    /* Typography Scale - Semantic Names */
+    --font-display: 3rem;         /* 48px - Display/Hero */
+    --font-h1: 2.25rem;           /* 36px - H1 */
+    --font-h2: 1.875rem;          /* 30px - H2 */
+    --font-h3: 1.5rem;           /* 24px - H3 */
+    --font-h4: 1.25rem;          /* 20px - H4 */
+    --font-body-lg: 1.125rem;    /* 18px - Body Large */
+    --font-body: 1rem;           /* 16px - Body */
+    --font-body-sm: 0.875rem;    /* 14px - Body Small */
+    --font-caption: 0.75rem;     /* 12px - Caption */
+    
+    /* Line Heights - Typography Scale */
+    --line-height-display: 1.167;  /* 56px for 48px font */
+    --line-height-h1: 1.222;       /* 44px for 36px font */
+    --line-height-h2: 1.267;        /* 38px for 30px font */
+    --line-height-h3: 1.333;       /* 32px for 24px font */
+    --line-height-h4: 1.4;          /* 28px for 20px font */
+    --line-height-body-lg: 1.556;  /* 28px for 18px font */
+    --line-height-body: 1.5;       /* 24px for 16px font */
+    --line-height-body-sm: 1.429;  /* 20px for 14px font */
+    --line-height-caption: 1.333;   /* 16px for 12px font */
+    
+    /* Letter Spacing */
+    --letter-spacing-tight: -0.025em;
+    --letter-spacing-normal: 0;
+    --letter-spacing-wide: 0.025em;
+    --letter-spacing-wider: 0.05em;
+    --letter-spacing-widest: 0.1em;
+    
+    /* Font Weights */
+    --font-weight-light: 300;
+    --font-weight-normal: 400;
+    --font-weight-medium: 500;
+    --font-weight-semibold: 600;
+    --font-weight-bold: 700;
+    --font-weight-extrabold: 800;
+    
+    /* Legacy Line Heights (for backward compatibility) */
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
+    
+    /* ============================================
+       Step 1.3: Spacing & Layout System
+       ============================================ */
+    
+    /* Spacing Scale - 4px base unit */
+    --spacing-1: 0.25rem;   /* 4px */
+    --spacing-2: 0.5rem;    /* 8px */
+    --spacing-3: 0.75rem;   /* 12px */
+    --spacing-4: 1rem;      /* 16px */
+    --spacing-5: 1.25rem;   /* 20px */
+    --spacing-6: 1.5rem;    /* 24px */
+    --spacing-8: 2rem;      /* 32px */
+    --spacing-10: 2.5rem;  /* 40px */
+    --spacing-12: 3rem;    /* 48px */
+    --spacing-16: 4rem;    /* 64px */
+    --spacing-20: 5rem;    /* 80px */
+    --spacing-24: 6rem;    /* 96px */
+    
+    /* Legacy Spacing (for backward compatibility) */
+    --spacing-xs: 0.25rem;   /* 4px */
+    --spacing-sm: 0.5rem;    /* 8px */
+    --spacing-md: 1rem;     /* 16px */
+    --spacing-lg: 1.5rem;   /* 24px */
+    --spacing-xl: 2rem;     /* 32px */
+    --spacing-xxl: 3rem;    /* 48px */
+    
+    /* Layout Tokens */
+    --header-height: 64px;
+    --header-height-mobile: 56px;
+    --sidebar-width: 280px;
+    --sidebar-width-collapsed: 64px;
+    --container-max-width: 1200px;
+    --content-max-width: 800px;
+    --content-max-width-wide: 1000px;
+    
+    /* Border Radius */
+    --radius-sm: 0.125rem;   /* 2px */
+    --radius-md: 0.25rem;    /* 4px */
+    --radius-lg: 0.5rem;     /* 8px */
+    --radius-xl: 0.75rem;    /* 12px */
+    --radius-2xl: 1rem;      /* 16px */
+    --radius-3xl: 1.5rem;    /* 24px */
+    --radius-round: 50%;
+    --radius-none: 0;
+    
+    /* ============================================
+       Step 1.4: Shadow & Elevation System
+       ============================================ */
+    
+    /* Elevation Levels - 6 Levels */
+    --elevation-0: none;
+    --elevation-1: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --elevation-2: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --elevation-3: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --elevation-4: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    --elevation-5: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    
+    /* Legacy Shadows (for backward compatibility) */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-none: none;
+    
+    /* Inner Shadows */
+    --shadow-inner: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06);
+    
+    /* ============================================
+       Step 1.5: Animation & Transition System
+       ============================================ */
+    
+    /* Transition Durations */
+    --transition-duration-fast: 150ms;
+    --transition-duration-normal: 250ms;
+    --transition-duration-slow: 350ms;
+    --transition-duration-slower: 500ms;
+    
+    /* Easing Functions - Cubic Bezier */
+    --easing-linear: linear;
+    --easing-ease-in: cubic-bezier(0.4, 0, 1, 1);
+    --easing-ease-out: cubic-bezier(0, 0, 0.2, 1);
+    --easing-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+    --easing-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    
+    /* Transitions - Complete System */
+    --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slow: 350ms cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-slower: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+    
+    /* Legacy Transitions (for backward compatibility) */
+    --transition-fast-legacy: 150ms ease-in-out;
+    --transition-normal-legacy: 250ms ease-in-out;
+    --transition-slow-legacy: 350ms ease-in-out;
+    
+    /* Animation Properties */
+    --animation-spin: spin 1s linear infinite;
+    --animation-pulse: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --animation-bounce: bounce 1s infinite;
+    
+    /* Motion Preferences */
+    --motion-reduce: prefers-reduced-motion;
+    
+    /* ============================================
+       Z-Index Layers
+       ============================================ */
+    
+    --z-index-base: 1;
+    --z-index-dropdown: 1000;
+    --z-index-sticky: 1020;
+    --z-index-fixed: 1030;
+    --z-index-modal-backdrop: 1040;
+    --z-index-modal: 1050;
+    --z-index-popover: 1060;
+    --z-index-tooltip: 1070;
+    --z-index-toast: 1080;
+    
+    /* ============================================
+       Responsive Breakpoints
+       Phase 10: Step 10.2
+       ============================================ */
+    
+    /* Breakpoint Values */
+    --breakpoint-mobile: 768px;
+    --breakpoint-tablet: 1024px;
+    --breakpoint-desktop: 1440px;
+    
+    /* Container Max Widths */
+    --container-max-width: 1200px;
+    --container-lg: 1400px;
+    --container-sm: 800px;
+}
+
+/* ============================================
+   Reduced Motion Support
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+    :root {
+        --transition-fast: 0ms;
+        --transition-normal: 0ms;
+        --transition-slow: 0ms;
+        --transition-slower: 0ms;
+        --animation-spin: none;
+        --animation-pulse: none;
+        --animation-bounce: none;
+    }
+}
+
+/* ============================================
+   Keyframe Animations
+   ============================================ */
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(-25%);
+        animation-timing-function: cubic-bezier(0.8, 0, 1, 1);
+    }
+    50% {
+        transform: translateY(0);
+        animation-timing-function: cubic-bezier(0, 0, 0.2, 1);
+    }
+}
+

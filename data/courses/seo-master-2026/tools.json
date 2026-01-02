@@ -1,0 +1,97 @@
+{
+  "tools": [
+    {
+      "name": "Google Search",
+      "category": "Search/Discovery",
+      "accessType": "Free",
+      "url": "https://www.google.com",
+      "description": "Primary tool for observing real SERPs and understanding the modern search landscape. Enables learners to see how search engines present results to users.",
+      "whenToUse": "For SERP analysis, keyword discovery (autocomplete, People Also Ask), intent validation, and general search observations.",
+      "usedIn": [
+        "Day 1, Lab 1 - Exploring the Real Search Landscape",
+        "Day 1, Lab 2 - SEO Terminology in Action",
+        "Day 2, Lab 1 - Crawl, Index & Rank Observation (with site: operator)",
+        "Day 2, Lab 2 - Search Intent & SERP Decoding",
+        "Day 3, Lab 1 - Seed Keyword Discovery (Autocomplete)",
+        "Day 3, Lab 2 - Keyword Expansion (Autocomplete, People Also Ask)",
+        "Day 4, Lab 1 - SERP Dissection & Intent Validation",
+        "Day 4, Lab 2 - Keyword-to-Page Mapping (for intent validation)",
+        "Day 9, Lab 1 - Crawl & Index Diagnostics (site: operator)",
+        "Day 11, Lab 2 - JavaScript SEO Risk Assessment (site: operator)",
+        "Day 12, Lab 2 - Ethical Link Opportunity Identification"
+      ]
+    },
+    {
+      "name": "Google Search Central",
+      "category": "Documentation/Reference",
+      "accessType": "Free",
+      "url": "https://developers.google.com/search",
+      "description": "Official documentation and definitions for SEO concepts. Authoritative source for understanding how Google explains SEO terminology.",
+      "whenToUse": "When you need official Google definitions and best practices for SEO concepts and terminology.",
+      "usedIn": [
+        "Day 1, Lab 2 - SEO Terminology in Action"
+      ]
+    },
+    {
+      "name": "Ahrefs (Limited Access)",
+      "category": "Analysis/Computation",
+      "accessType": "Limited Access",
+      "url": "https://ahrefs.com",
+      "description": "Comprehensive SEO tool providing keyword data, search volume estimates, keyword suggestions, and competitive analysis.",
+      "whenToUse": "For keyword research, keyword expansion, backlink analysis, and competitive research when limited access is provided during training.",
+      "usedIn": [
+        "Day 3, Lab 2 - Keyword Expansion Using Free & Limited Tools",
+        "Day 12, Lab 1 - Backlink Profile Analysis",
+        "Day 12, Lab 2 - Ethical Link Opportunity Identification"
+      ]
+    },
+    {
+      "name": "Google PageSpeed Insights",
+      "category": "Analysis/Monitoring",
+      "accessType": "Free",
+      "url": "https://pagespeed.web.dev",
+      "description": "Provides Core Web Vitals measurements (LCP, INP, CLS) and performance analysis for any webpage with both lab and field data.",
+      "whenToUse": "When analyzing page performance, diagnosing Core Web Vitals issues, and understanding how performance affects SEO.",
+      "usedIn": [
+        "Day 10, Lab 1 - Core Web Vitals Diagnosis"
+      ]
+    },
+    {
+      "name": "Google Search Console",
+      "category": "Analysis/Monitoring",
+      "accessType": "Free",
+      "url": "https://search.google.com/search-console",
+      "description": "Provides crawl statistics, Core Web Vitals field data, index coverage reports, and URL inspection tools.",
+      "whenToUse": "For monitoring site health, analyzing crawl efficiency, indexation issues, performance metrics, and diagnosing technical SEO problems.",
+      "usedIn": [
+        "Day 8, Lab 1 - Index Coverage Analysis",
+        "Day 9, Lab 1 - Crawl & Index Diagnostics",
+        "Day 9, Lab 2 - Robots.txt & Sitemap Review",
+        "Day 10, Lab 1 - Core Web Vitals Diagnosis",
+        "Day 10, Lab 2 - Performance Issue Prioritization",
+        "Day 11, Lab 1 - Crawl Budget Analysis",
+        "Day 15, Lab 1 - Traffic Drop Diagnosis",
+        "Day 16, Lab 1 - Algorithm Impact Analysis",
+        "Day 16, Lab 2 - Penalty Identification & Response",
+        "Day 18, Lab 2 - SEO Reporting & Dashboard Creation"
+      ]
+    },
+    {
+      "name": "Browser Developer Tools",
+      "category": "Monitoring/Inspection",
+      "accessType": "Free",
+      "url": "Built into browsers",
+      "description": "Enable inspection of HTML, CSS, JavaScript, network performance, and page rendering. Allow viewing page source and diagnosing technical SEO issues.",
+      "whenToUse": "When inspecting pages, diagnosing technical issues, checking rendered content, viewing source code, and understanding how pages load and render.",
+      "usedIn": [
+        "Day 8, Lab 2 - Canonical & Duplication Audit",
+        "Day 9, Lab 1 - Crawl & Index Diagnostics",
+        "Day 9, Lab 2 - Robots.txt & Sitemap Review",
+        "Day 10, Lab 1 - Core Web Vitals Diagnosis",
+        "Day 10, Lab 2 - Performance Issue Prioritization",
+        "Day 11, Lab 2 - JavaScript SEO Risk Assessment",
+        "Day 18, Lab 1 - Ecommerce Category & Product SEO Audit"
+      ]
+    }
+  ]
+}

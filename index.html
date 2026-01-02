@@ -3,188 +3,1044 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SEO Master Course 2026 - Learning Management System</title>
-    <link rel="stylesheet" href="lms/styles.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <!-- Content Security Policy -->
+    <!-- Note: unsafe-eval is required for dynamic ES module imports from CDN -->
+    <!-- This is a known limitation when using dynamic import() with CDN ESM builds -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net https://*.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; img-src 'self' data: https: blob:; connect-src 'self' https://*.supabase.co https://*.supabase.io https://cdn.jsdelivr.net https://*.jsdelivr.net https://api.openai.com wss://*.supabase.co; font-src 'self' data: https://cdn.jsdelivr.net; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">
+    <title>DV Learning Hub</title>
+    <link rel="stylesheet" href="./lms/styles/variables.css">
+    <link rel="stylesheet" href="./lms/styles/styles.css">
+    <link rel="stylesheet" href="./lms/styles/components.css">
+    <link rel="stylesheet" href="./lms/styles/reports.css">
+    <link rel="stylesheet" href="./lms/styles/ai-coach.css">
 </head>
 <body>
-    <!-- Header -->
-    <header class="lms-header">
-        <div class="header-content">
-            <div class="logo-section">
-                <img src="https://www.digitalvidya.com/wp-content/uploads/2024/11/Digital-Vidya-Logo@2x.webp" alt="Digital Vidya Logo" class="header-logo">
-                <div class="logo-text">
-                    <h1 class="course-title">SEO Master Course 2026</h1>
-                    <span class="course-subtitle">Learning Management System</span>
-                </div>
-            </div>
-            <div class="header-progress">
-                <div class="progress-bar-container">
-                    <div class="progress-bar-label">Course Progress</div>
-                    <div class="progress-bar-wrapper">
-                        <div class="progress-bar" id="headerProgressBar">
-                            <div class="progress-fill" id="headerProgressFill"></div>
-                        </div>
-                        <span class="progress-percentage" id="headerProgressPercent">0%</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </header>
+    <!-- Skip to main content link for screen readers -->
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+    <div id="header-container"></div>
+    <main id="main-content" role="main">
+        <div id="app-container"></div>
+    </main>
 
-    <div class="lms-container">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-header">
-                <h2>Course Content</h2>
-                <button class="btn-close" id="closeSidebar" aria-label="Close sidebar">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                    </svg>
-                </button>
-            </div>
+    <script src="./config/app.config.local.js"></script>
+    <script src="./config/app.config.js"></script>
+    <script type="module">
+        import { router } from './lms/core/router.js';
+        import AuthUI from './lms/components/auth-ui.js';
+        import AdminUI from './lms/components/admin-ui.js';
+
+        console.log('[App] Initializing...');
+        
+        // Check if container exists
+        const appContainer = document.getElementById('app-container');
+        if (!appContainer) {
+            console.error('[App] Container not found!');
+        } else {
+            console.log('[App] Container found:', appContainer);
+        }
+
+        router.addRoute('/login', async () => {
+            console.log('[Router] /login route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            console.log('[Router] Creating AuthUI...');
+            const authUI = new AuthUI(container);
+            authUI.showLoginScreen();
+            console.log('[Router] Login screen shown');
+        });
+
+        router.addRoute('/register', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const authUI = new AuthUI(container);
+            authUI.showRegisterScreen();
+        });
+
+        router.addRoute('/courses', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
             
-            <div class="sidebar-content">
-                <div class="filter-tabs">
-                    <button class="filter-tab active" data-filter="all">All</button>
-                    <button class="filter-tab" data-filter="books">📚 Books</button>
-                    <button class="filter-tab" data-filter="labs">🧪 Labs</button>
-                </div>
-
-                <nav class="course-navigation" id="courseNav">
-                    <!-- Course Overview link and Days content dynamically populated by app.js -->
-                </nav>
-
-                <div class="sidebar-footer">
-                    <a href="#" class="sidebar-link" id="toolsLink">🛠️ Tools & When to Use Them</a>
-                </div>
-            </div>
-        </aside>
-
-        <!-- Main Content Area -->
-        <main class="main-content">
-            <!-- Welcome Screen -->
-            <div class="welcome-screen" id="welcomeScreen">
-                <div class="welcome-content">
-                    <h1>Welcome to SEO Master Course 2026</h1>
-                    <p class="lead">A comprehensive 20-day program covering SEO fundamentals, technical SEO, content optimization, and advanced strategies.</p>
-                    
-                    <div class="course-stats">
-                        <div class="stat-card">
-                            <div class="stat-number">20</div>
-                            <div class="stat-label">Days</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">36</div>
-                            <div class="stat-label">Chapters</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number">40</div>
-                            <div class="stat-label">Labs</div>
-                        </div>
-                        <div class="stat-card stat-card-link" id="toolsStatCard" style="cursor: pointer;">
-                            <div class="stat-number">6</div>
-                            <div class="stat-label">Tools</div>
-                        </div>
-                    </div>
-
-                    <div class="quick-start">
-                        <h2>Getting Started</h2>
-                        <div class="instructions">
-                            <div class="instruction-item">
-                                <span class="instruction-number">1</span>
-                                <div>
-                                    <strong>Select a Day</strong>
-                                    <p>Choose any day from the sidebar navigation to begin</p>
-                                </div>
-                            </div>
-                            <div class="instruction-item">
-                                <span class="instruction-number">2</span>
-                                <div>
-                                    <strong>Read Chapters</strong>
-                                    <p>Start with the books/chapters to build your foundation</p>
-                                </div>
-                            </div>
-                            <div class="instruction-item">
-                                <span class="instruction-number">3</span>
-                                <div>
-                                    <strong>Complete Labs</strong>
-                                    <p>Practice what you've learned with hands-on exercises</p>
-                                </div>
-                            </div>
-                            <div class="instruction-item">
-                                <span class="instruction-number">4</span>
-                                <div>
-                                    <strong>Track Progress</strong>
-                                    <p>Your progress is automatically saved in your browser</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="welcome-actions">
-                        <button class="btn-primary" id="startCourse">
-                            <span>Start Course</span>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                            </svg>
-                        </button>
-                        <button class="btn-secondary" id="viewOverview">
-                            <span>📋 Course Overview</span>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Content Viewer -->
-            <div class="content-viewer" id="contentViewer" style="display: none;">
-                <div class="content-header">
-                    <div class="breadcrumb" id="breadcrumb"></div>
-                    <div class="content-actions">
-                        <button class="btn-secondary" id="prevContent" disabled>
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="15 18 9 12 15 6"></polyline>
-                            </svg>
-                            Previous
-                        </button>
-                        <button class="btn-secondary" id="nextContent">
-                            Next
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <polyline points="9 18 15 12 9 6"></polyline>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
+            // Check if user is a learner and redirect to my-courses
+            try {
+                const { authService } = await import('./lms/services/auth-service.js');
+                const { rbacService } = await import('./lms/services/rbac-service.js');
+                const currentUser = await authService.getCurrentUser();
                 
-                <article class="content-body" id="contentBody">
-                    <div class="loading-spinner">
-                        <div class="spinner"></div>
-                        <p>Loading content...</p>
+                if (currentUser && rbacService.isLearner(currentUser)) {
+                    router.navigate('/courses/my-courses');
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking user role:', error);
+            }
+            
+            // For trainers and admins, show general course listing
+            try {
+                const { default: CourseListing } = await import('./lms/components/course-listing.js');
+                const courseListing = new CourseListing(container);
+                await courseListing.show();
+            } catch (error) {
+                console.error('[Router] Error in /courses handler:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Courses</div>
+                        <div class="error-message">${error.message || 'Failed to load courses page'}</div>
                     </div>
-                </article>
+                `;
+            }
+        });
 
-                <div class="content-footer">
-                    <div class="mark-complete">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="markComplete">
-                            <span>Mark as complete</span>
-                        </label>
+        router.addRoute('/courses/my-courses', async () => {
+            console.log('[Router] /courses/my-courses route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            try {
+                console.log('[Router] Importing MyCourses component');
+                const { default: MyCourses } = await import('./lms/components/my-courses.js');
+                console.log('[Router] MyCourses imported, creating instance');
+                const myCourses = new MyCourses(container);
+                console.log('[Router] Calling myCourses.show()');
+                await myCourses.show();
+                console.log('[Router] myCourses.show() completed');
+            } catch (error) {
+                console.error('[Router] Error in /courses/my-courses handler:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading My Courses</div>
+                        <div class="error-message">${error.message || 'Failed to load courses page'}</div>
+                        <button class="btn btn-primary" onclick="location.reload()">Reload Page</button>
                     </div>
-                </div>
-            </div>
-        </main>
-    </div>
+                `;
+            }
+        });
 
-    <!-- Overlay for mobile -->
-    <div class="overlay" id="overlay"></div>
+        router.addRoute('/courses/:id/learn', async (route) => {
+            console.log('[Router] /courses/:id/learn route handler called, courseId:', route.params.id);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: StartLearning } = await import('./lms/components/start-learning.js');
+            const startLearning = new StartLearning(container);
+            await startLearning.show(route.params.id);
+        });
 
-    <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="lms/course-data.js"></script>
-    <script src="lms/app.js"></script>
+        router.addRoute('/courses/:id', async (route) => {
+            console.log('[Router] /courses/:id route handler called, courseId:', route.params.id);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: CourseDetail } = await import('./lms/components/course-detail.js');
+            const courseDetail = new CourseDetail(container);
+            await courseDetail.show(route.params.id);
+        });
+
+        router.addRoute('/courses/:id/content/:chapterId', async (route) => {
+            console.log('[Router] /courses/:id/content/:chapterId route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: ContentViewer } = await import('./lms/components/content-viewer.js');
+            const contentViewer = new ContentViewer(container);
+            await contentViewer.show(route.params.id, route.params.chapterId);
+        });
+
+        router.addRoute('/admin/dashboard', async () => {
+            console.log('[Router] /admin/dashboard route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const adminUI = new AdminUI(container);
+            await adminUI.showDashboard();
+        });
+
+        router.addRoute('/admin/users/pending', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: PendingApprovals } = await import('./lms/components/pending-approvals.js');
+            const pendingApprovals = new PendingApprovals(container);
+            await pendingApprovals.show();
+        });
+
+        router.addRoute('/admin/learners', async () => {
+            console.log('[Router] /admin/learners route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: LearnerManagement } = await import('./lms/components/learner-management.js');
+            const learnerManagement = new LearnerManagement(container);
+            await learnerManagement.show();
+        });
+
+        router.addRoute('/admin/users', async () => {
+            console.log('[Router] /admin/users route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const adminUI = new AdminUI(container);
+            await adminUI.showUsersPage();
+        });
+
+        router.addRoute('/admin/users/:id', async (route) => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: UserDetail } = await import('./lms/components/user-detail.js');
+            const userDetail = new UserDetail(container);
+            await userDetail.show(route.params.id);
+        });
+
+        router.addRoute('/admin/*', async () => {
+            console.log('[Router] /admin/* route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const adminUI = new AdminUI(container);
+            await adminUI.showDashboard();
+        });
+
+        router.addRoute('/dashboard', async () => {
+            console.log('[Router] /dashboard route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            
+            // Check user role and redirect to appropriate dashboard
+            try {
+                const { authService } = await import('./lms/services/auth-service.js');
+                const currentUser = await authService.getCurrentUser();
+                
+                if (!currentUser) {
+                    router.navigate('/login');
+                    return;
+                }
+                
+                const role = currentUser.role;
+                if (role === 'admin') {
+                    router.navigate('/admin/dashboard');
+                    return;
+                } else if (role === 'trainer') {
+                    router.navigate('/trainer/dashboard');
+                    return;
+                } else {
+                    // For learners, show learner dashboard
+                    const { default: LearnerDashboard } = await import('./lms/components/learner-dashboard.js');
+                    const learnerDashboard = new LearnerDashboard(container);
+                    await learnerDashboard.show();
+                }
+            } catch (error) {
+                console.error('[Router] Error in /dashboard handler:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Dashboard</div>
+                        <div class="error-message">${error.message || 'Failed to load dashboard'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/trainer/dashboard', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: TrainerDashboard } = await import('./lms/components/trainer-dashboard.js');
+            const trainerDashboard = new TrainerDashboard(container);
+            await trainerDashboard.show();
+        });
+
+        router.addRoute('/trainer/learners', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: TrainerLearnersList } = await import('./lms/components/trainer-learners-list.js');
+            const learnersList = new TrainerLearnersList(container);
+            await learnersList.show();
+        });
+
+        router.addRoute('/trainer/lab-review', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: TrainerLabReview } = await import('./lms/components/trainer-lab-review.js');
+            const trainerLabReview = new TrainerLabReview(container);
+            await trainerLabReview.show();
+        });
+
+        router.addRoute('/trainer/ai-coach-personalization', async () => {
+            console.log('[Router] /trainer/ai-coach-personalization route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: TrainerAICoachPersonalization } = await import('./lms/components/trainer-ai-coach-personalization.js');
+            const component = new TrainerAICoachPersonalization(container);
+            await component.show();
+        });
+
+        router.addRoute('/learner/lab-submissions', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: LearnerLabSubmissions } = await import('./lms/components/learner-lab-submissions.js');
+            const learnerLabSubmissions = new LearnerLabSubmissions(container);
+            await learnerLabSubmissions.show();
+        });
+
+        router.addRoute('/submissions/:id', async (route) => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: SubmissionDetail } = await import('./lms/components/submission-detail.js');
+            const submissionDetail = new SubmissionDetail(container);
+            await submissionDetail.show(route.params.id);
+        });
+
+        router.addRoute('/profile', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: UserProfile } = await import('./lms/components/user-profile.js');
+            const userProfile = new UserProfile(container);
+            await userProfile.show();
+        });
+
+        router.addRoute('/help', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const { default: HelpCenter } = await import('./lms/components/help-center.js');
+            const helpCenter = new HelpCenter(container);
+            await helpCenter.show();
+        });
+
+        // Report Routes
+        router.addRoute('/reports/learner', async () => {
+            console.log('[Router] /reports/learner route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            // Ensure container is visible
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing LearnerDashboard...');
+                const { default: LearnerDashboard } = await import('./lms/components/reports/learner-reports/learner-dashboard.js');
+                console.log('[Router] LearnerDashboard imported, creating instance...');
+                const dashboard = new LearnerDashboard(container);
+                console.log('[Router] Calling dashboard.init()...');
+                await dashboard.init();
+                console.log('[Router] Dashboard initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading learner reports:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Reports</div>
+                        <div class="error-message">${error.message || 'Failed to load reports. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/learner/course/:courseId', async (route) => {
+            console.log('[Router] /reports/learner/course/:courseId route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            // Ensure container is visible
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing LearnerCourseReport for courseId:', route.params.courseId);
+                const { default: LearnerCourseReport } = await import('./lms/components/reports/learner-reports/learner-course-report.js');
+                console.log('[Router] LearnerCourseReport imported, creating instance...');
+                const report = new LearnerCourseReport(container, route.params.courseId);
+                console.log('[Router] Calling report.init()...');
+                await report.init();
+                console.log('[Router] Course report initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading learner course report:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Course Report</div>
+                        <div class="error-message">${error.message || 'Failed to load course report. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                        <a href="#/reports/learner" class="btn btn-primary" style="margin-top: 16px;">
+                            Back to Dashboard
+                        </a>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/trainer', async () => {
+            console.log('[Router] /reports/trainer route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            // Ensure container is visible
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing TrainerDashboard...');
+                const { default: TrainerDashboard } = await import('./lms/components/reports/trainer-reports/trainer-dashboard.js');
+                console.log('[Router] TrainerDashboard imported, creating instance...');
+                const dashboard = new TrainerDashboard(container);
+                console.log('[Router] Calling dashboard.init()...');
+                await dashboard.init();
+                console.log('[Router] Trainer dashboard initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading trainer reports:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Reports</div>
+                        <div class="error-message">${error.message || 'Failed to load reports. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/trainer/course/:courseId', async (route) => {
+            console.log('[Router] /reports/trainer/course/:courseId route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            // Ensure container is visible
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing CoursePerformanceReport for courseId:', route.params.courseId);
+                const { default: CoursePerformanceReport } = await import('./lms/components/reports/trainer-reports/course-performance-report.js');
+                console.log('[Router] CoursePerformanceReport imported, creating instance...');
+                const report = new CoursePerformanceReport(container, route.params.courseId);
+                console.log('[Router] Calling report.init()...');
+                await report.init();
+                console.log('[Router] Course performance report initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading course performance report:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Report</div>
+                        <div class="error-message">${error.message || 'Failed to load course report. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                        <a href="#/reports/trainer" class="btn btn-primary" style="margin-top: 16px;">
+                            Back to Dashboard
+                        </a>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/trainer/learner/:learnerId', async (route) => {
+            console.log('[Router] /reports/trainer/learner/:learnerId route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            // Ensure container is visible
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing IndividualLearnerReport for learnerId:', route.params.learnerId);
+                const { default: IndividualLearnerReport } = await import('./lms/components/reports/trainer-reports/individual-learner-report.js');
+                console.log('[Router] IndividualLearnerReport imported, creating instance...');
+                const report = new IndividualLearnerReport(container, route.params.learnerId);
+                console.log('[Router] Calling report.init()...');
+                await report.init();
+                console.log('[Router] Individual learner report initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading individual learner report:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Report</div>
+                        <div class="error-message">${error.message || 'Failed to load learner report. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                        <a href="#/reports/trainer" class="btn btn-primary" style="margin-top: 16px;">
+                            Back to Dashboard
+                        </a>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/trainer/comparison', async () => {
+            console.log('[Router] /reports/trainer/comparison route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const { default: CrossCourseComparison } = await import('./lms/components/reports/trainer-reports/cross-course-comparison.js');
+                const comparison = new CrossCourseComparison(container);
+                await comparison.init();
+            } catch (error) {
+                console.error('[Router] Error loading cross-course comparison:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error</div>
+                        <div class="error-message">${error.message || 'Failed to load comparison tool'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/trainer/tags', async () => {
+            console.log('[Router] /reports/trainer/tags route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const { default: TagBasedReport } = await import('./lms/components/reports/trainer-reports/tag-based-report.js');
+                const report = new TagBasedReport(container);
+                await report.init();
+            } catch (error) {
+                console.error('[Router] Error loading tag-based report:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error</div>
+                        <div class="error-message">${error.message || 'Failed to load tag-based report'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin', async () => {
+            console.log('[Router] /reports/admin route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            // Ensure container is visible
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing AdminDashboard...');
+                const { default: AdminDashboard } = await import('./lms/components/reports/admin-reports/admin-dashboard.js');
+                console.log('[Router] AdminDashboard imported, creating instance...');
+                const dashboard = new AdminDashboard(container);
+                console.log('[Router] Calling dashboard.init()...');
+                await dashboard.init();
+                console.log('[Router] Admin dashboard initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading admin reports:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Reports</div>
+                        <div class="error-message">${error.message || 'Failed to load reports. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/courses', async () => {
+            console.log('[Router] /reports/admin/courses route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing AdminCourseList...');
+                const { default: AdminCourseList } = await import('./lms/components/reports/admin-reports/course-list.js');
+                console.log('[Router] AdminCourseList imported, creating instance...');
+                const courseList = new AdminCourseList(container);
+                console.log('[Router] Calling courseList.init()...');
+                await courseList.init();
+                console.log('[Router] Course list initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading course list:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Course List</div>
+                        <div class="error-message">${error.message || 'Failed to load course list. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                        <a href="#/reports/admin" class="btn btn-primary" style="margin-top: 16px;">
+                            Back to Dashboard
+                        </a>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/trainers', async () => {
+            console.log('[Router] /reports/admin/trainers route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const { default: TrainerPerformanceReport } = await import('./lms/components/reports/admin-reports/trainer-performance-report.js');
+                const report = new TrainerPerformanceReport(container);
+                await report.init();
+            } catch (error) {
+                console.error('[Router] Error loading trainer performance report:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error</div>
+                        <div class="error-message">${error.message || 'Failed to load trainer report'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/tags', async () => {
+            console.log('[Router] /reports/admin/tags route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const { default: TagManagement } = await import('./lms/components/reports/admin-reports/tag-management.js');
+                const management = new TagManagement(container);
+                await management.init();
+            } catch (error) {
+                console.error('[Router] Error loading tag management:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error</div>
+                        <div class="error-message">${error.message || 'Failed to load tag management'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/tag-reports', async () => {
+            console.log('[Router] /reports/admin/tag-reports route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const { default: AdminTagBasedReport } = await import('./lms/components/reports/admin-reports/admin-tag-based-report.js');
+                const report = new AdminTagBasedReport(container);
+                await report.init();
+            } catch (error) {
+                console.error('[Router] Error loading admin tag-based report:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error</div>
+                        <div class="error-message">${error.message || 'Failed to load tag-based report'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/learners', async () => {
+            console.log('[Router] /reports/admin/learners route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                console.log('[Router] Importing AdminLearnerList...');
+                const { default: AdminLearnerList } = await import('./lms/components/reports/admin-reports/learner-list.js');
+                console.log('[Router] AdminLearnerList imported, creating instance...');
+                const learnerList = new AdminLearnerList(container);
+                console.log('[Router] Calling learnerList.init()...');
+                await learnerList.init();
+                console.log('[Router] Learner list initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading learner list:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Learner List</div>
+                        <div class="error-message">${error.message || 'Failed to load learner list. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                        <a href="#/reports/admin" class="btn btn-primary" style="margin-top: 16px;">
+                            Back to Dashboard
+                        </a>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/learner/:learnerId', async (route) => {
+            console.log('[Router] /reports/admin/learner/:learnerId route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const learnerId = route.params.learnerId;
+                console.log('[Router] Importing AdminIndividualLearnerReport for learnerId:', learnerId);
+                const { default: AdminIndividualLearnerReport } = await import('./lms/components/reports/admin-reports/individual-learner-report.js');
+                const report = new AdminIndividualLearnerReport(container, learnerId);
+                await report.init();
+            } catch (error) {
+                console.error('[Router] Error loading individual learner report:', error);
+                console.error('[Router] Error stack:', error.stack);
+                const errorMessage = error && error.message ? String(error.message) : 'Failed to load learner report';
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error</div>
+                        <div class="error-message">${errorMessage}</div>
+                        <a href="#/reports/admin/learners" class="btn btn-primary" style="margin-top: 16px;">
+                            Back to Learner List
+                        </a>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/course/:courseId', async (route) => {
+            console.log('[Router] /reports/admin/course/:courseId route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const { default: AdminCoursePerformanceReport } = await import('./lms/components/reports/admin-reports/course-performance-report.js');
+                const report = new AdminCoursePerformanceReport(container, route.params.courseId);
+                await report.init();
+            } catch (error) {
+                console.error('[Router] Error loading admin course report:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error</div>
+                        <div class="error-message">${error.message || 'Failed to load course report'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/reports/admin/learner/:learnerId/course/:courseId', async (route) => {
+            console.log('[Router] /reports/admin/learner/:learnerId/course/:courseId route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            container.style.display = 'block';
+            try {
+                const learnerId = route.params.learnerId;
+                const courseId = route.params.courseId;
+                console.log('[Router] Route params:', route.params);
+                console.log('[Router] Extracted learnerId:', learnerId, 'courseId:', courseId);
+                console.log('[Router] Importing LearnerCourseReport for admin view...');
+                const { default: LearnerCourseReport } = await import('./lms/components/reports/learner-reports/learner-course-report.js');
+                console.log('[Router] LearnerCourseReport imported, creating instance with learnerId:', learnerId);
+                // Pass learnerId as third parameter to use that learner's data instead of current user
+                const report = new LearnerCourseReport(container, courseId, learnerId);
+                console.log('[Router] LearnerCourseReport instance created, report.learnerId:', report.learnerId);
+                console.log('[Router] Calling report.init()...');
+                await report.init();
+                console.log('[Router] Learner course report initialized successfully');
+            } catch (error) {
+                console.error('[Router] Error loading admin learner course report:', error);
+                console.error('[Router] Error stack:', error.stack);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Course Report</div>
+                        <div class="error-message">${error.message || 'Failed to load course report. Please check the console for details.'}</div>
+                        <pre style="margin-top: 16px; font-size: 12px; text-align: left; background: #f3f4f6; padding: 16px; border-radius: 8px; overflow: auto;">${error.stack || 'No stack trace available'}</pre>
+                        <a href="#/reports/admin/learner/${route.params.learnerId}" class="btn btn-primary" style="margin-top: 16px;">
+                            Back to Learner Report
+                        </a>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/trainer/course-allocation', async (route) => {
+            console.log('[Router] /trainer/course-allocation route handler called', route);
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            console.log('[Router] Container found, importing CourseAllocationUI...');
+            try {
+                const { default: CourseAllocationUI } = await import('./lms/components/course-allocation-ui.js');
+                console.log('[Router] CourseAllocationUI imported, creating instance...');
+                const courseAllocationUI = new CourseAllocationUI(container);
+                console.log('[Router] Instance created, container:', container);
+                console.log('[Router] Container display before show():', container.style.display);
+                console.log('[Router] Calling courseAllocationUI.show()...');
+                try {
+                    await courseAllocationUI.show();
+                    console.log('[Router] courseAllocationUI.show() completed');
+                    console.log('[Router] Container display after show():', container.style.display);
+                    console.log('[Router] Container innerHTML length:', container.innerHTML.length);
+                    console.log('[Router] Container visible:', container.offsetParent !== null);
+                } catch (error) {
+                    console.error('[Router] Error in courseAllocationUI.show():', error);
+                    throw error;
+                }
+            } catch (error) {
+                console.error('[Router] Error in course-allocation handler:', error);
+                throw error;
+            }
+        });
+
+        router.addRoute('/notifications', async () => {
+            console.log('[Router] /notifications route handler called');
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found for /notifications');
+                return;
+            }
+            console.log('[Router] Container found:', container);
+            
+            try {
+                console.log('[Router] Attempting to import NotificationCenter...');
+                const notificationModule = await import('./lms/components/notification-center.js');
+                console.log('[Router] Module imported:', notificationModule);
+                const NotificationCenter = notificationModule.default;
+                console.log('[Router] NotificationCenter class:', NotificationCenter);
+                
+                if (!NotificationCenter) {
+                    throw new Error('NotificationCenter class not found in module');
+                }
+                
+                console.log('[Router] Creating NotificationCenter instance...');
+                const notificationCenter = new NotificationCenter(container);
+                console.log('[Router] NotificationCenter instance created');
+                
+                console.log('[Router] Calling notificationCenter.show()...');
+                await notificationCenter.show();
+                console.log('[Router] notificationCenter.show() completed');
+            } catch (error) {
+                console.error('[Router] Error in /notifications handler:', error);
+                console.error('[Router] Error stack:', error.stack);
+                console.error('[Router] Error name:', error.name);
+                if (container) {
+                    container.innerHTML = `
+                        <div class="error-state" style="padding: 40px; text-align: center;">
+                            <div class="error-icon" style="font-size: 48px; margin-bottom: 20px;">⚠️</div>
+                            <div class="error-title" style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">Error Loading Notifications</div>
+                            <div class="error-message" style="color: #666; margin-bottom: 20px;">${error.message || 'An unexpected error occurred'}</div>
+                            <button class="btn btn-primary" onclick="location.reload()">Reload Page</button>
+                        </div>
+                    `;
+                }
+            }
+        });
+
+        // ============================================================================
+        // AI COACH ROUTES
+        // ============================================================================
+
+        // Admin: AI Coach Content Indexing
+        router.addRoute('/admin/ai-coach/indexing', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            try {
+                const { default: AdminAICoachIndexing } = await import('./lms/components/admin-ai-coach-indexing.js');
+                const adminIndexing = new AdminAICoachIndexing('app-container');
+                await adminIndexing.init();
+            } catch (error) {
+                console.error('[Router] Error loading AI Coach indexing:', error);
+                container.innerHTML = `
+                    <div class="error-container">
+                        <h2>Error</h2>
+                        <p>Failed to load AI Coach indexing interface.</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+
+        // Trainer: AI Escalations List
+        router.addRoute('/trainer/ai-escalations', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            try {
+                const { default: TrainerAIEscalations } = await import('./lms/components/trainer-ai-escalations.js');
+                const component = new TrainerAIEscalations(container);
+                await component.show();
+            } catch (error) {
+                console.error('[Router] Error loading AI escalations:', error);
+                container.innerHTML = `
+                    <div class="error-container">
+                        <h2>Error</h2>
+                        <p>Failed to load AI escalations.</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+
+        // Trainer: AI Escalation Detail
+        router.addRoute('/trainer/ai-escalations/:id', async (route) => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            try {
+                const { default: TrainerAIEscalationDetail } = await import('./lms/components/trainer-ai-escalation-detail.js');
+                const component = new TrainerAIEscalationDetail(container, route.params.id);
+                await component.show();
+            } catch (error) {
+                console.error('[Router] Error loading escalation detail:', error);
+                container.innerHTML = `
+                    <div class="error-container">
+                        <h2>Error</h2>
+                        <p>Failed to load escalation details.</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+
+        // Admin: AI Coach Analytics
+        router.addRoute('/admin/ai-coach/analytics', async () => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            try {
+                // TODO: Create AdminAICoachAnalytics component in Phase 5
+                container.innerHTML = `
+                    <div class="info-container">
+                        <h2>AI Coach Analytics</h2>
+                        <p>This feature will be available in Phase 5: Analytics & Optimization</p>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('[Router] Error loading AI Coach analytics:', error);
+                container.innerHTML = `
+                    <div class="error-container">
+                        <h2>Error</h2>
+                        <p>Failed to load AI Coach analytics.</p>
+                        <p>${error.message}</p>
+                    </div>
+                `;
+            }
+        });
+
+        console.log('[App] Initializing router...');
+        router.init(appContainer);
+        console.log('[App] Router initialized');
+        
+        // Initialize header on app startup
+        (async () => {
+            try {
+                const headerContainer = document.getElementById('header-container');
+                if (headerContainer) {
+                    const { default: Header } = await import('./lms/components/header.js');
+                    const header = new Header(headerContainer);
+                    await header.init();
+                    console.log('[App] Header initialized');
+                }
+            } catch (error) {
+                console.warn('[App] Failed to initialize header:', error);
+            }
+        })();
+        
+        // Handle initial route if hash is already set
+        if (window.location.hash) {
+            console.log('[App] Initial hash:', window.location.hash);
+        }
+    </script>
 </body>
 </html>
 

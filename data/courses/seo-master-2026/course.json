@@ -1,0 +1,19 @@
+{
+  "id": "seo-master-2026",
+  "title": "SEO Master Course 2026",
+  "subtitle": "Comprehensive SEO Training Program",
+  "description": "Master the art and science of Search Engine Optimization with this comprehensive 20-day course. Learn from fundamentals to advanced strategies, including technical SEO, content optimization, link building, and modern SEO techniques.",
+  "brief": "A complete SEO training program covering fundamentals, technical SEO, content strategy, and advanced optimization techniques.",
+  "thumbnail": "https://via.placeholder.com/400x300?text=SEO+Master+Course",
+  "instructor": "Digital Vidya",
+  "duration": "20 Days",
+  "level": "Intermediate to Advanced",
+  "totalDays": 20,
+  "totalChapters": 36,
+  "totalLabs": 40,
+  "totalTools": 6,
+  "category": "Digital Marketing",
+  "tags": ["SEO", "Digital Marketing", "Search Engine Optimization", "Content Marketing"],
+  "published": true,
+  "createdAt": "2026-01-01"
+}

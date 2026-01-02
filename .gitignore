@@ -23,3 +23,9 @@ Thumbs.db
 *.bak
 *.tmp
 
+# Environment variables (backend)
+.env
+.env.local
+.env.*.local
+lms/config.local.js
+
