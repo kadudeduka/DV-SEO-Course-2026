@@ -84,6 +84,9 @@ class LabEvaluationPopup {
         window.addEventListener('hashchange', () => {
             this.checkIfLabPageVisited();
         });
+        
+        // Check on initial load if user is on a lab page
+        this.checkIfLabPageVisited();
 
         // Check for evaluations on page load
         console.log('[LabEvaluationPopup] Checking for new evaluations on init...');
@@ -484,21 +487,36 @@ class LabEvaluationPopup {
     /**
      * Check if user visited a lab page and mark related evaluations as shown
      */
-    checkIfLabPageVisited() {
-        if (!this.currentUser) return;
+    async checkIfLabPageVisited() {
+        if (!this.currentUser || this.currentUser.role !== 'learner') return;
         
         const hash = window.location.hash;
         // Check if hash matches lab page pattern: /courses/:courseId/lab/:labId
         const labPageMatch = hash.match(/\/courses\/([^\/]+)\/lab\/(.+)$/);
-        if (labPageMatch && this.currentEvaluation) {
+        if (labPageMatch) {
             const courseId = labPageMatch[1];
             const labId = labPageMatch[2];
             
-            // If current evaluation matches the lab page being visited, mark it as shown
-            if (this.currentEvaluation.course_id === courseId && 
-                this.currentEvaluation.lab_id === labId) {
-                console.log('[LabEvaluationPopup] User visited lab page, marking evaluation as shown');
-                this.markAsShown(this.currentEvaluation.id);
+            // Check if there are any evaluations for this lab that haven't been shown
+            try {
+                const recentEvaluations = await labSubmissionService.getRecentEvaluations(
+                    this.currentUser.id,
+                    new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString() // Check last 7 days
+                );
+                
+                // Mark all evaluations for this lab as shown
+                const evaluationsForThisLab = recentEvaluations.filter(
+                    evaluation => evaluation.course_id === courseId && evaluation.lab_id === labId
+                );
+                
+                evaluationsForThisLab.forEach(evaluation => {
+                    if (!this.shownSubmissionIds.has(evaluation.id)) {
+                        console.log('[LabEvaluationPopup] User visited lab page, marking evaluation as shown:', evaluation.id);
+                        this.markAsShown(evaluation.id);
+                    }
+                });
+            } catch (error) {
+                console.warn('[LabEvaluationPopup] Error checking lab page evaluations:', error);
             }
         }
     }
