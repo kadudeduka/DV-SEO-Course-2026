@@ -4,7 +4,9 @@
   "description": "Digital Vidya SEO Learning Management System",
   "type": "module",
   "scripts": {
-    "index-course": "node lms/scripts/index-course-content-node.js"
+    "index-course": "node lms/scripts/index-course-content-node.js",
+    "generate-config": "node scripts/generate-config.js",
+    "setup": "npm run generate-config"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
