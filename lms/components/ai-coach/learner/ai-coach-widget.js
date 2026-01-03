@@ -58,7 +58,7 @@ class AICoachWidget {
      */
     async init() {
         try {
-            // Load basic services first (auth, UI components)
+            // Load basic services first (auth, UI components, supabase)
             if (!authService) {
                 const authModule = await import('../../../services/auth-service.js');
                 authService = authModule.authService;
@@ -70,6 +70,10 @@ class AICoachWidget {
             if (!LoadingState) {
                 const loadingModule = await import('../shared/loading-state.js');
                 LoadingState = loadingModule.default;
+            }
+            if (!supabaseClient) {
+                const supabaseModule = await import('../../../services/supabase-client.js');
+                supabaseClient = supabaseModule.supabaseClient;
             }
         } catch (error) {
             console.error('[AICoachWidget] Error loading basic services:', error);
@@ -630,6 +634,23 @@ class AICoachWidget {
     async loadConversationHistory() {
         if (!this.currentUser || !this.currentCourseId) return;
 
+        // Ensure supabaseClient is loaded
+        if (!supabaseClient) {
+            try {
+                const supabaseModule = await import('../../../services/supabase-client.js');
+                supabaseClient = supabaseModule.supabaseClient;
+            } catch (error) {
+                console.warn('[AICoachWidget] Failed to load supabaseClient:', error);
+                return;
+            }
+        }
+
+        // Check if supabaseClient is still null (e.g., if Supabase is not configured)
+        if (!supabaseClient) {
+            console.warn('[AICoachWidget] supabaseClient is not available, skipping conversation history');
+            return;
+        }
+
         try {
             const { data: history } = await supabaseClient
                 .from('ai_coach_conversation_history')
@@ -698,6 +719,21 @@ class AICoachWidget {
             if (!message || message.type !== 'ai') return;
 
             const responseId = messageId;
+
+            // Ensure supabaseClient is loaded
+            if (!supabaseClient) {
+                try {
+                    const supabaseModule = await import('../../../services/supabase-client.js');
+                    supabaseClient = supabaseModule.supabaseClient;
+                } catch (error) {
+                    console.warn('[AICoachWidget] Failed to load supabaseClient for feedback:', error);
+                    throw new Error('Database not available');
+                }
+            }
+
+            if (!supabaseClient) {
+                throw new Error('Database not available');
+            }
 
             // Submit feedback
             const { error } = await supabaseClient
