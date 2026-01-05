@@ -140,13 +140,24 @@ class LLMService {
                     messages: [
                         {
                             role: 'system',
-                            content: `You are an intent classifier for an educational LMS. Classify the user's question into one of these categories:
-- course_content: Questions about course material, concepts, definitions
+                            content: `You are an intent classifier for an SEO course LMS. Classify the user's question into one of these categories:
+
+- course_content: Questions about course material, concepts, definitions, strategies, how-to questions about SEO/AEO topics. This includes questions like "What is X?", "How to do X?", "What are the differences for X?", etc. where X is an SEO/AEO concept.
+
 - list_request: Questions asking to "list", "enumerate", "show all", "what are all" items/examples from a chapter
+
 - navigation: Questions about course structure, where to find content, how to navigate
+
 - lab_guidance: Questions about labs, assignments, exercises (NOT asking for answers)
+
 - lab_struggle: Indications of struggling with labs (stuck, help, don't understand)
-- out_of_scope: Questions not related to the course
+
+- out_of_scope: Questions completely unrelated to SEO, AEO, digital marketing, or course content (e.g., "What's the weather?", "How to cook pasta?")
+
+IMPORTANT RULES:
+1. If the question mentions SEO, AEO, Answer Engine Optimization, keywords, SERP, search engines, or any digital marketing concept, classify as "course_content" NOT "out_of_scope"
+2. "How to" questions about SEO/AEO topics should be "course_content", not "out_of_scope"
+3. Only classify as "out_of_scope" if the question is clearly unrelated to the course domain
 
 Respond with ONLY the category name.`
                         },

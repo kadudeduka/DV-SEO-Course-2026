@@ -59,12 +59,64 @@ class AICoachService {
 
             // 4. Classify intent
             const context = await contextBuilderService.getCurrentContext(learnerId, courseId);
-            const intent = await queryProcessorService.classifyIntent(processedQuestion, context);
+            let intent = await queryProcessorService.classifyIntent(processedQuestion, context);
+            
+            // Validate out_of_scope classification: Check if content exists for the topic
+            // This prevents false positives where LLM doesn't recognize course topics
+            if (intent === 'out_of_scope') {
+                console.log('[AICoachService] Intent classified as out_of_scope, validating by checking if content exists...');
+                
+                // Extract topic keywords to check if content exists
+                const topicKeywords = contextBuilderService.extractTopicKeywords(processedQuestion);
+                
+                // Quick check: Search for chunks containing topic keywords
+                // If we find relevant content, the question is NOT out of scope
+                if (topicKeywords.length > 0) {
+                    try {
+                        const quickSearchChunks = await retrievalService.keywordSearch(
+                            processedQuestion,
+                            courseId,
+                            {},
+                            5 // Just check if any content exists
+                        );
+                        
+                        // Also check for dedicated chapters
+                        const dedicatedChunks = await retrievalService.searchDedicatedChaptersByTopic(
+                            topicKeywords,
+                            courseId,
+                            {}
+                        );
+                        
+                        if (quickSearchChunks.length > 0 || dedicatedChunks.length > 0) {
+                            console.log('[AICoachService] Found relevant content, reclassifying as course_content instead of out_of_scope');
+                            intent = 'course_content'; // Reclassify as course_content
+                        } else {
+                            // Additional check: Look for common SEO/AEO terms
+                            const seoTerms = ['seo', 'aeo', 'answer engine', 'search engine', 'serp', 'keyword', 'optimization', 'ranking', 'content', 'link', 'backlink', 'technical seo', 'on-page', 'off-page'];
+                            const questionLower = processedQuestion.toLowerCase();
+                            const hasSEOTerms = seoTerms.some(term => questionLower.includes(term));
+                            
+                            if (hasSEOTerms) {
+                                console.log('[AICoachService] Question contains SEO/AEO terms, reclassifying as course_content');
+                                intent = 'course_content';
+                            }
+                        }
+                    } catch (error) {
+                        console.warn('[AICoachService] Error validating out_of_scope classification:', error);
+                        // If validation fails, be lenient and assume it's course_content
+                        const seoTerms = ['seo', 'aeo', 'answer engine', 'search engine'];
+                        const questionLower = processedQuestion.toLowerCase();
+                        if (seoTerms.some(term => questionLower.includes(term))) {
+                            intent = 'course_content';
+                        }
+                    }
+                }
+            }
             
             // Determine if this is a list request (needed early for chunk retrieval logic)
             const isListRequest = intent === 'list_request';
 
-            // 5. Check if out of scope
+            // 5. Check if out of scope (after validation)
             if (intent === 'out_of_scope') {
                 return {
                     success: false,
