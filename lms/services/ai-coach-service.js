@@ -13,6 +13,7 @@ import { labStruggleDetectionService } from './lab-struggle-detection-service.js
 import { trainerPersonalizationService } from './trainer-personalization-service.js';
 import { escalationService } from './escalation-service.js';
 import { supabaseClient } from './supabase-client.js';
+import { chunkMetadataService } from './chunk-metadata-service.js';
 
 class AICoachService {
     constructor() {
@@ -77,25 +78,55 @@ class AICoachService {
                 intent
             );
 
-            // 7. Search for similar chunks using hybrid search (semantic + keyword)
+            // 7. Parse specific references and search for chunks
+            const specificReferences = queryProcessorService.parseSpecificReferences(processedQuestion);
+            console.log('[AICoachService] Parsed references:', specificReferences);
+            
             // Only filter by contentType for lab-specific questions, otherwise search all content
             const searchFilters = {
                 contentType: intent === 'lab_guidance' || intent === 'lab_struggle' ? 'lab' : null
             };
             console.log('[AICoachService] Searching for chunks with filters:', searchFilters);
             
-            // Use hybrid search (combines semantic and keyword search)
-            let similarChunks = await retrievalService.hybridSearch(
-                processedQuestion,
-                courseId,
-                searchFilters,
-                15 // Get more chunks for filtering
-            );
-            console.log(`[AICoachService] Hybrid search found ${similarChunks.length} chunks`);
+            let similarChunks = [];
             
-            // Fallback: If hybrid search returns nothing, try keyword-only search
+            // If specific references are found, try exact match first
+            if (specificReferences.hasSpecificReference) {
+                console.log('[AICoachService] Specific references detected, attempting exact match...');
+                const exactMatchChunks = await retrievalService.searchExactMatch(
+                    specificReferences,
+                    courseId,
+                    searchFilters,
+                    50 // Get more chunks for exact match
+                );
+                
+                if (exactMatchChunks.length > 0) {
+                    console.log(`[AICoachService] Exact match found ${exactMatchChunks.length} chunks`);
+                    similarChunks = exactMatchChunks;
+                } else {
+                    console.warn('[AICoachService] Exact match returned no results, falling back to hybrid search...');
+                    // Fall back to hybrid search if exact match fails
+                    similarChunks = await retrievalService.hybridSearch(
+                        processedQuestion,
+                        courseId,
+                        searchFilters,
+                        15
+                    );
+                }
+            } else {
+                // No specific references, use hybrid search
+                similarChunks = await retrievalService.hybridSearch(
+                    processedQuestion,
+                    courseId,
+                    searchFilters,
+                    15 // Get more chunks for filtering
+                );
+                console.log(`[AICoachService] Hybrid search found ${similarChunks.length} chunks`);
+            }
+            
+            // Fallback: If no results, try keyword-only search
             if (similarChunks.length === 0) {
-                console.warn('[AICoachService] Hybrid search returned no results, trying keyword search...');
+                console.warn('[AICoachService] No results found, trying keyword search...');
                 const keywordChunks = await retrievalService.keywordSearch(
                     processedQuestion,
                     courseId,
@@ -106,12 +137,71 @@ class AICoachService {
                 console.log(`[AICoachService] Keyword search found ${similarChunks.length} chunks`);
             }
 
+            // 9. For list requests with specific chapter, retrieve ALL chunks from that chapter
+            if (isListRequest) {
+                const chapterRef = this._extractChapterReference(processedQuestion);
+                if (chapterRef && (chapterRef.day || chapterRef.chapter)) {
+                    console.log('[AICoachService] List request with specific chapter, retrieving ALL chunks from chapter...');
+                    const allChapterChunks = await retrievalService.getAllChunksFromChapter(
+                        chapterRef,
+                        courseId,
+                        searchFilters
+                    );
+                    
+                    if (allChapterChunks.length > 0) {
+                        console.log(`[AICoachService] Retrieved ${allChapterChunks.length} chunks from specified chapter for list request`);
+                        // Use ALL chunks from the chapter for list requests
+                        similarChunks = allChapterChunks;
+                    } else {
+                        console.warn('[AICoachService] No chunks found for specified chapter, using hybrid search results');
+                        // Fall back to hybrid search results if chapter not found
+                    }
+                } else {
+                    // List request without specific chapter - prioritize chunks from search results
+                    console.log('[AICoachService] List request without specific chapter reference');
+                }
+            }
+
+            // 8a. Enrich chunks with metadata if not present (optional, lightweight)
+            // Only enrich if chunks don't have metadata to avoid performance impact
+            const chunksNeedingMetadata = similarChunks.filter(chunk => {
+                const hasMetadata = chunk.metadata && (
+                    chunk.metadata.coverage_level || 
+                    chunk.metadata.completeness_score !== undefined ||
+                    chunk.metadata.is_dedicated_topic_chapter !== undefined
+                );
+                return !hasMetadata;
+            });
+
+            if (chunksNeedingMetadata.length > 0 && chunksNeedingMetadata.length <= 10) {
+                // Only enrich if we have a small number of chunks (performance optimization)
+                console.log(`[AICoachService] Enriching ${chunksNeedingMetadata.length} chunks with metadata...`);
+                try {
+                    const enrichedChunks = await chunkMetadataService.analyzeChunks(chunksNeedingMetadata, {
+                        useLLM: false // Use fast heuristic analysis
+                    });
+                    
+                    // Merge enriched metadata back into similarChunks
+                    const enrichedMap = new Map(enrichedChunks.map(c => [c.id, c]));
+                    similarChunks = similarChunks.map(chunk => {
+                        const enriched = enrichedMap.get(chunk.id);
+                        return enriched || chunk;
+                    });
+                } catch (error) {
+                    console.warn('[AICoachService] Error enriching chunks with metadata:', error);
+                    // Continue without metadata enrichment
+                }
+            }
+
             // 9. Filter chunks by access and progress
-            const filteredChunks = contextBuilderService.filterChunksByAccess(
-                similarChunks,
-                fullContext.progressContext,
-                intent
-            );
+            // For list requests with specific chapter, be more lenient with filtering
+            const filteredChunks = isListRequest && similarChunks.some(c => c.fromListRequest)
+                ? similarChunks // Don't filter list request chunks - we want all of them
+                : contextBuilderService.filterChunksByAccess(
+                    similarChunks,
+                    fullContext.progressContext,
+                    intent
+                );
 
             // 10. Prioritize chunks
             const prioritizedChunks = contextBuilderService.prioritizeChunks(
@@ -120,17 +210,32 @@ class AICoachService {
                 fullContext.progressContext
             );
 
-            // 11. Select top chunks within token limit
-            const selectedChunks = contextBuilderService.constructContextWithinTokenLimit(
-                prioritizedChunks,
-                2000 // Max 2000 tokens for context
-            );
+            // 11. Select chunks within token limit
+            // For list requests, try to include ALL chunks (increase limit significantly)
+            let selectedChunks;
+            if (isListRequest && prioritizedChunks.some(c => c.fromListRequest)) {
+                // For list requests with specific chapter, include ALL chunks (or as many as possible)
+                const contextTokenLimit = 5000; // Very high limit for list requests
+                selectedChunks = contextBuilderService.constructContextWithinTokenLimit(
+                    prioritizedChunks,
+                    contextTokenLimit
+                );
+                console.log(`[AICoachService] List request: Selected ${selectedChunks.length} chunks (target: all chunks from chapter)`);
+            } else {
+                // Normal token limit for other requests
+                const contextTokenLimit = isListRequest ? 3000 : 2000;
+                selectedChunks = contextBuilderService.constructContextWithinTokenLimit(
+                    prioritizedChunks,
+                    contextTokenLimit
+                );
+            }
 
             console.log(`[AICoachService] Selected ${selectedChunks.length} chunks after filtering and prioritization`, {
                 similarChunks: similarChunks.length,
                 filteredChunks: filteredChunks.length,
                 prioritizedChunks: prioritizedChunks.length,
-                selectedChunks: selectedChunks.length
+                selectedChunks: selectedChunks.length,
+                hasSpecificReference: specificReferences.hasSpecificReference
             });
 
             if (selectedChunks.length === 0) {
@@ -139,8 +244,25 @@ class AICoachService {
                     filteredChunks: filteredChunks.length,
                     prioritizedChunks: prioritizedChunks.length,
                     intent,
-                    courseId
+                    courseId,
+                    specificReferences: specificReferences.hasSpecificReference ? specificReferences : null
                 });
+                
+                // If specific references were provided but no content found, provide more specific error
+                if (specificReferences.hasSpecificReference) {
+                    const refParts = [];
+                    if (specificReferences.day) refParts.push(`Day ${specificReferences.day}`);
+                    if (specificReferences.chapter) refParts.push(`Chapter ${specificReferences.chapter}`);
+                    if (specificReferences.lab) refParts.push(`Lab ${specificReferences.lab}`);
+                    if (specificReferences.step) refParts.push(`Step ${specificReferences.step}`);
+                    
+                    return {
+                        success: false,
+                        error: `No content found for ${refParts.join(', ')}. Please verify the reference or try rephrasing your question.`,
+                        queryId: null
+                    };
+                }
+                
                 return {
                     success: false,
                     error: 'No relevant content found. Please try rephrasing your question.',
@@ -153,13 +275,24 @@ class AICoachService {
 
             // 13. Generate answer
             const isLabGuidance = intent === 'lab_guidance' || intent === 'lab_struggle';
+            const isListRequest = intent === 'list_request';
+            
+            // Adjust token limits for comprehensive questions or list requests
+            let maxTokens = 500;
+            if (isListRequest || processedQuestion.toLowerCase().includes('comprehensive') || 
+                processedQuestion.toLowerCase().includes('all') || 
+                processedQuestion.toLowerCase().includes('list')) {
+                maxTokens = 1000; // Allow more tokens for comprehensive answers and lists
+            }
+            
             const answerResult = await llmService.generateAnswer(
                 processedQuestion,
                 selectedChunks,
                 systemPrompt,
                 {
                     isLabGuidance,
-                    labStruggleContext: labStruggle
+                    labStruggleContext: labStruggle,
+                    maxTokens: maxTokens
                 }
             );
 
@@ -170,6 +303,44 @@ class AICoachService {
                 chapter_title: chunk.chapter_title,
                 lab_id: chunk.lab_id || null
             }));
+            
+            // 14a. Validate references match question context
+            const referenceValidation = this._validateReferences(processedQuestion, references, selectedChunks);
+            if (referenceValidation.warnings.length > 0) {
+                // Log all warnings
+                referenceValidation.warnings.forEach(warning => {
+                    console.warn(`[AICoachService] ${warning.severity === 'high' ? 'HIGH PRIORITY' : ''} ${warning.message}`);
+                });
+                
+                // If specific references were provided and validation failed, this is a critical issue
+                if (specificReferences.hasSpecificReference && referenceValidation.warnings.some(w => w.severity === 'high')) {
+                    console.error('[AICoachService] CRITICAL: Specific references provided but validation failed. This may indicate wrong content was retrieved.');
+                    // For now, we log the error but still return the answer
+                    // In future, we might want to retry with stricter matching or return an error
+                }
+            }
+            
+            // 14b. Additional validation: Check if exact match was required but not found
+            if (specificReferences.hasSpecificReference) {
+                const hasExactMatch = selectedChunks.some(chunk => chunk.exactMatch === true);
+                if (!hasExactMatch && selectedChunks.length > 0) {
+                    console.warn('[AICoachService] Warning: Specific references provided but no exact matches found in selected chunks. Using semantic similarity results instead.');
+                } else if (!hasExactMatch && selectedChunks.length === 0) {
+                    // This case is already handled above (no chunks selected)
+                } else if (hasExactMatch) {
+                    console.log('[AICoachService] Success: Exact matches found for specific references');
+                }
+            }
+            
+            // 14b. Validate list completeness if this is a list request
+            if (isListRequest) {
+                const listValidation = this._validateListCompleteness(processedQuestion, answerResult.answer, selectedChunks);
+                if (listValidation.warnings.length > 0) {
+                    listValidation.warnings.forEach(warning => {
+                        console.warn(`[AICoachService] List completeness warning: ${warning.message}`);
+                    });
+                }
+            }
 
             // 15. Store query and response (don't fail if storage fails)
             let queryId = null;
@@ -306,6 +477,18 @@ class AICoachService {
 5. Only answer questions about the current course (${courseName})
 6. If question is about a different course, redirect to current course`;
 
+        // Add list request specific instructions
+        if (intent === 'list_request') {
+            basePrompt += `\n\nLIST REQUEST RULES (CRITICAL):
+- When asked to "list" items from a specific chapter, extract and enumerate ALL items, not just a summary
+- When a specific chapter is mentioned (e.g., "Day 4, Chapter 2"), extract content ONLY from that chapter
+- Ensure references in your answer match the chapter explicitly mentioned in the question
+- For listing requests, provide complete enumeration in structured format (numbered or bulleted list)
+- Don't summarize - list all items comprehensively
+- If the chapter has 10 examples, list all 10 (not just 3-4)
+- Format: Use clear numbered or bulleted lists for easy reading`;
+        }
+
         return {
             base: basePrompt,
             trainerPersonalization: trainerInfo
@@ -416,6 +599,284 @@ class AICoachService {
                 response_id: responseId,
                 sequence_number: sequenceNumber
             });
+    }
+
+    /**
+     * Extract chapter reference from question
+     * @param {string} question - User question
+     * @returns {Object|null} Chapter reference with day and/or chapter, or null
+     */
+    _extractChapterReference(question) {
+        // Pattern: "Day 4, Chapter 2" or "Day 4 Chapter 2" or "day 4 ch 2"
+        const dayChapterMatch = question.match(/day\s*(\d+)[,\s]+chapter\s*(\d+)/i);
+        if (dayChapterMatch) {
+            return {
+                day: parseInt(dayChapterMatch[1]),
+                chapter: parseInt(dayChapterMatch[2])
+            };
+        }
+        
+        // Pattern: "Chapter 2" (without day)
+        const chapterMatch = question.match(/chapter\s*(\d+)/i);
+        if (chapterMatch) {
+            return {
+                chapter: parseInt(chapterMatch[1])
+            };
+        }
+        
+        // Pattern: "Day 4" (without chapter)
+        const dayMatch = question.match(/day\s*(\d+)/i);
+        if (dayMatch) {
+            return {
+                day: parseInt(dayMatch[1])
+            };
+        }
+        
+        return null;
+    }
+
+    /**
+     * Validate that references match the question context
+     * @param {string} question - User question
+     * @param {Array<Object>} references - Extracted references
+     * @param {Array<Object>} chunks - Selected chunks
+     * @returns {Object} Validation result with warnings
+     */
+    _validateReferences(question, references, chunks) {
+        const warnings = [];
+        const lowerQuestion = question.toLowerCase();
+        
+        // Extract specific day/chapter/lab/step references from question
+        // Pattern: "Day 4, Chapter 2" or "Day 4 Chapter 2" or "day 4 ch 2"
+        const dayChapterMatch = question.match(/day\s*(\d+)[,\s]+chapter\s*(\d+)/i);
+        const dayMatch = question.match(/day\s*(\d+)/i);
+        const chapterMatch = question.match(/chapter\s*(\d+)/i);
+        const labMatch = question.match(/lab\s*(\d+)/i);
+        const stepMatch = question.match(/step\s*(\d+)/i);
+        
+        // Check for Day + Chapter combination (e.g., "Day 4, Chapter 2")
+        if (dayChapterMatch) {
+            const questionDay = parseInt(dayChapterMatch[1]);
+            const questionChapter = parseInt(dayChapterMatch[2]);
+            
+            const hasMatchingDayChapter = references.some(ref => {
+                const refDay = typeof ref.day === 'number' ? ref.day : 
+                             (typeof ref.day === 'string' ? parseInt(ref.day.match(/\d+/)?.[0] || '0') : null);
+                const refChapter = ref.chapter ? 
+                    (ref.chapter.match(/\d+/)?.[0] || ref.chapter_title?.match(/chapter\s*(\d+)/i)?.[1]) : null;
+                
+                return refDay === questionDay && refChapter === questionChapter.toString();
+            });
+            
+            if (!hasMatchingDayChapter && chunks.length > 0) {
+                warnings.push({
+                    type: 'day_chapter_mismatch',
+                    message: `Question mentions Day ${questionDay}, Chapter ${questionChapter} but references don't match`,
+                    expected: `Day ${questionDay}, Chapter ${questionChapter}`,
+                    actual: references.map(r => `Day ${r.day}, Chapter ${r.chapter || r.chapter_title}`).join(', ')
+                });
+                console.warn(`[AICoachService] Warning: Question mentions Day ${questionDay}, Chapter ${questionChapter} but references don't match. References:`, references);
+            }
+        } else {
+            // Check individual day reference
+            if (dayMatch) {
+                const questionDay = parseInt(dayMatch[1]);
+                const hasMatchingDay = references.some(ref => {
+                    const refDay = typeof ref.day === 'number' ? ref.day : 
+                                 (typeof ref.day === 'string' ? parseInt(ref.day.match(/\d+/)?.[0] || '0') : null);
+                    return refDay === questionDay;
+                });
+                
+                if (!hasMatchingDay && chunks.length > 0) {
+                    warnings.push({
+                        type: 'day_mismatch',
+                        message: `Question mentions Day ${questionDay} but references don't match`,
+                        expected: `Day ${questionDay}`,
+                        actual: references.map(r => `Day ${r.day}`).join(', ')
+                    });
+                    console.warn(`[AICoachService] Warning: Question mentions Day ${questionDay} but references don't match. References:`, references);
+                }
+            }
+            
+            // Check individual chapter reference
+            if (chapterMatch) {
+                const questionChapter = parseInt(chapterMatch[1]);
+                const hasMatchingChapter = references.some(ref => {
+                    const refChapter = ref.chapter ? 
+                        (ref.chapter.match(/\d+/)?.[0] || ref.chapter_title?.match(/chapter\s*(\d+)/i)?.[1]) : null;
+                    return refChapter === questionChapter.toString();
+                });
+                
+                if (!hasMatchingChapter && chunks.length > 0) {
+                    warnings.push({
+                        type: 'chapter_mismatch',
+                        message: `Question mentions Chapter ${questionChapter} but references don't match`,
+                        expected: `Chapter ${questionChapter}`,
+                        actual: references.map(r => r.chapter || r.chapter_title).join(', ')
+                    });
+                    console.warn(`[AICoachService] Warning: Question mentions Chapter ${questionChapter} but references don't match. References:`, references);
+                }
+            }
+        }
+        
+        // Check for Lab + Step combination (e.g., "Lab 1 Step 3")
+        if (labMatch && stepMatch) {
+            const questionLab = parseInt(labMatch[1]);
+            const questionStep = parseInt(stepMatch[1]);
+            
+            const hasMatchingLabStep = references.some(ref => {
+                const refLab = ref.lab_id ? parseInt(ref.lab_id.match(/\d+/)?.[0] || '0') : null;
+                // Note: step_number may not be in references yet, would need to check chunks
+                return refLab === questionLab;
+            });
+            
+            if (!hasMatchingLabStep && chunks.length > 0) {
+                warnings.push({
+                    type: 'lab_step_mismatch',
+                    message: `Question mentions Lab ${questionLab}, Step ${questionStep} but references don't match`,
+                    expected: `Lab ${questionLab}, Step ${questionStep}`,
+                    actual: references.map(r => `Lab ${r.lab_id || 'N/A'}`).join(', ')
+                });
+                console.warn(`[AICoachService] Warning: Question mentions Lab ${questionLab}, Step ${questionStep} but references don't match. References:`, references);
+            }
+        }
+        
+        // For list requests, ensure references match the chapter mentioned
+        if (lowerQuestion.includes('list') && (dayChapterMatch || chapterMatch)) {
+            const questionChapter = dayChapterMatch ? parseInt(dayChapterMatch[2]) : parseInt(chapterMatch[1]);
+            const hasMatchingChapter = references.some(ref => {
+                const refChapter = ref.chapter ? 
+                    (ref.chapter.match(/\d+/)?.[0] || ref.chapter_title?.match(/chapter\s*(\d+)/i)?.[1]) : null;
+                return refChapter === questionChapter.toString();
+            });
+            
+            if (!hasMatchingChapter) {
+                warnings.push({
+                    type: 'list_chapter_mismatch',
+                    message: `List request mentions Chapter ${questionChapter} but references don't match`,
+                    expected: `Chapter ${questionChapter}`,
+                    actual: references.map(r => r.chapter || r.chapter_title).join(', '),
+                    severity: 'high' // High severity for list requests
+                });
+                console.warn(`[AICoachService] Warning: List request mentions Chapter ${questionChapter} but references don't match. References:`, references);
+            }
+        }
+        
+        return { valid: warnings.length === 0, warnings };
+    }
+
+    /**
+     * Validate list completeness for list requests
+     * @param {string} question - User question
+     * @param {string} answer - Generated answer
+     * @param {Array<Object>} chunks - Selected chunks
+     * @returns {Object} Validation result with warnings
+     */
+    _validateListCompleteness(question, answer, chunks) {
+        const warnings = [];
+        
+        // Check if answer appears to be a complete list or just a summary
+        const answerLower = answer.toLowerCase();
+        
+        // Count list items in answer (numbered lists, bullet points)
+        const numberedItems = (answer.match(/^\d+\./gm) || []).length;
+        const bulletItems = (answer.match(/^[-•*]\s/gm) || []).length;
+        const listItemCount = numberedItems + bulletItems;
+        
+        // Check for summary indicators
+        const summaryIndicators = [
+            'here are the key',
+            'some examples include',
+            'examples include',
+            'focus on',
+            'illustrate',
+            'common patterns',
+            'key examples',
+            'main examples'
+        ];
+        const hasSummaryLanguage = summaryIndicators.some(indicator => answerLower.includes(indicator));
+        
+        // If answer has summary language but few list items, it might be incomplete
+        if (hasSummaryLanguage && listItemCount < 3) {
+            warnings.push({
+                type: 'incomplete_list',
+                message: 'Answer appears to be a summary rather than a complete list',
+                listItemCount: listItemCount,
+                chunksUsed: chunks.length,
+                suggestion: 'Ensure all items from the specified chapter are listed'
+            });
+        }
+        
+        // Check if we retrieved chunks from list request (should have fromListRequest flag)
+        const hasListRequestChunks = chunks.some(c => c.fromListRequest === true);
+        if (hasListRequestChunks && listItemCount < chunks.length / 2) {
+            // If we retrieved many chunks but answer has few items, might be incomplete
+            warnings.push({
+                type: 'potentially_incomplete_extraction',
+                message: `Retrieved ${chunks.length} chunks but answer only lists ${listItemCount} items`,
+                listItemCount: listItemCount,
+                chunksRetrieved: chunks.length,
+                suggestion: 'Answer should list all items from all retrieved chunks'
+            });
+        }
+        
+        // Check if answer mentions "all" or "complete" but has few items
+        if ((answerLower.includes('all') || answerLower.includes('complete')) && listItemCount < 5) {
+            warnings.push({
+                type: 'potentially_incomplete',
+                message: `Answer claims completeness but only lists ${listItemCount} items`,
+                listItemCount: listItemCount,
+                chunksRetrieved: chunks.length
+            });
+        }
+        
+        // Validate that answer references match the chapter mentioned in question
+        const dayChapterMatch = question.match(/day\s*(\d+)[,\s]+chapter\s*(\d+)/i);
+        const chapterMatch = question.match(/chapter\s*(\d+)/i);
+        
+        if (dayChapterMatch || chapterMatch) {
+            const questionChapter = dayChapterMatch ? dayChapterMatch[2] : chapterMatch[1];
+            const questionDay = dayChapterMatch ? dayChapterMatch[1] : null;
+            
+            // Check if answer mentions the correct chapter
+            const chapterPattern = questionDay 
+                ? new RegExp(`(day\\s*${questionDay}[,\\s]+)?chapter\\s*${questionChapter}`, 'i')
+                : new RegExp(`chapter\\s*${questionChapter}`, 'i');
+            const answerHasCorrectChapter = answer.match(chapterPattern);
+            
+            if (!answerHasCorrectChapter) {
+                warnings.push({
+                    type: 'chapter_reference_mismatch',
+                    message: `Answer doesn't reference Chapter ${questionChapter} mentioned in question`,
+                    expected: questionDay ? `Day ${questionDay}, Chapter ${questionChapter}` : `Chapter ${questionChapter}`,
+                    severity: 'high'
+                });
+            }
+            
+            // Check if chunks match the chapter
+            const chunksFromCorrectChapter = chunks.filter(chunk => {
+                if (questionDay) {
+                    const chunkDay = typeof chunk.day === 'number' ? chunk.day : 
+                                   parseInt(chunk.day?.match(/\d+/)?.[0] || '0');
+                    if (chunkDay !== parseInt(questionDay)) return false;
+                }
+                const chunkChapter = chunk.chapter_id?.match(/\d+/)?.[0] || 
+                                   chunk.chapter_title?.match(/chapter\s*(\d+)/i)?.[1];
+                return chunkChapter === questionChapter;
+            });
+            
+            if (chunksFromCorrectChapter.length === 0 && chunks.length > 0) {
+                warnings.push({
+                    type: 'chunk_chapter_mismatch',
+                    message: `Retrieved chunks don't match Chapter ${questionChapter} mentioned in question`,
+                    expected: questionDay ? `Day ${questionDay}, Chapter ${questionChapter}` : `Chapter ${questionChapter}`,
+                    chunksRetrieved: chunks.length,
+                    severity: 'high'
+                });
+            }
+        }
+        
+        return { valid: warnings.length === 0, warnings };
     }
 
     /**

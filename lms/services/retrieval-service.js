@@ -218,7 +218,7 @@ class RetrievalService {
     }
 
     /**
-     * Hybrid search: Combine semantic and keyword search
+     * Hybrid search: Combine semantic and keyword search with metadata-aware prioritization
      * @param {string} query - Search query
      * @param {string} courseId - Course identifier
      * @param {Object} filters - Additional filters
@@ -235,12 +235,30 @@ class RetrievalService {
         // Keyword search (simple text matching)
         const keywordResults = await this.keywordSearch(query, courseId, filters, limit * 2);
 
+        // Extract topic keywords from query for dedicated chapter matching
+        const topicKeywords = this._extractTopicKeywords(query);
+
         // Combine and deduplicate
         const combined = new Map();
         
         // Add semantic results with higher weight
         semanticResults.forEach((chunk, index) => {
-            const score = chunk.similarity * 0.7 + (1 - index / semanticResults.length) * 0.3;
+            let score = chunk.similarity * 0.7 + (1 - index / semanticResults.length) * 0.3;
+            
+            // Boost score for dedicated topic chapters that match query topic
+            const metadata = chunk.metadata || {};
+            const isDedicatedTopic = metadata.is_dedicated_topic_chapter ?? chunk.is_dedicated_topic_chapter;
+            const primaryTopic = metadata.primary_topic || chunk.primary_topic;
+            
+            if (isDedicatedTopic && primaryTopic && topicKeywords.length > 0) {
+                const topicMatch = topicKeywords.some(tk => 
+                    primaryTopic.toLowerCase().includes(tk) || tk.includes(primaryTopic.toLowerCase())
+                );
+                if (topicMatch) {
+                    score += 0.3; // Boost for dedicated chapters matching topic
+                }
+            }
+            
             combined.set(chunk.id, { ...chunk, combinedScore: score, source: 'semantic' });
         });
 
@@ -260,6 +278,23 @@ class RetrievalService {
         return Array.from(combined.values())
             .sort((a, b) => b.combinedScore - a.combinedScore)
             .slice(0, limit);
+    }
+
+    /**
+     * Extract topic keywords from query
+     * @param {string} query - Search query
+     * @returns {Array<string>} Topic keywords
+     */
+    _extractTopicKeywords(query) {
+        const lowerQuery = query.toLowerCase();
+        const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'can', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'different', 'difference', 'key', 'elements', 'examples', 'list', 'are', 'is', 'what']);
+        
+        // Extract significant words (length > 4, not common words)
+        const words = lowerQuery.split(/\s+/)
+            .map(w => w.replace(/[^\w]/g, ''))
+            .filter(w => w.length > 4 && !commonWords.has(w));
+        
+        return words;
     }
 
     /**
@@ -313,6 +348,209 @@ class RetrievalService {
             .filter(chunk => chunk.keywordScore > 0)
             .sort((a, b) => b.keywordScore - a.keywordScore)
             .slice(0, limit);
+    }
+
+    /**
+     * Search for chunks with exact match on specific references (Day, Lab, Step, Chapter)
+     * @param {Object} references - Reference object with day, lab, step, chapter
+     * @param {string} courseId - Course identifier
+     * @param {Object} filters - Additional filters
+     * @param {number} limit - Maximum number of results
+     * @returns {Promise<Array<Object>>} Array of matching chunks
+     */
+    async searchExactMatch(references, courseId, filters = {}, limit = 50) {
+        if (!courseId) {
+            throw new Error('courseId is required for exact match search');
+        }
+
+        try {
+            // Verify user session for RLS
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) {
+                console.warn('[RetrievalService] No authenticated user session. RLS will block access.');
+            }
+
+            // Build query with exact match filters
+            let query = supabaseClient
+                .from('ai_coach_content_chunks')
+                .select('*')
+                .eq('course_id', courseId);
+
+            // Apply exact match filters
+            if (references.day !== null && references.day !== undefined) {
+                // Handle both numeric and string day fields
+                query = query.or(`day.eq.${references.day},day.eq.day${references.day},day.eq."day${references.day}"`);
+            }
+
+            if (references.chapter !== null && references.chapter !== undefined) {
+                // Try multiple chapter ID formats
+                const chapterPatterns = [
+                    `chapter-${references.chapter}`,
+                    `ch${references.chapter}`,
+                    `day${references.day || ''}-ch${references.chapter}`,
+                    `chapter ${references.chapter}`
+                ];
+                // Use ilike for pattern matching on chapter_id or chapter_title
+                query = query.or(
+                    chapterPatterns.map(pattern => 
+                        `chapter_id.ilike.%${pattern}%,chapter_title.ilike.%${pattern}%`
+                    ).join(',')
+                );
+            }
+
+            if (references.lab !== null && references.lab !== undefined) {
+                // Try multiple lab ID formats
+                const labPatterns = [
+                    `lab${references.lab}`,
+                    `day${references.day || ''}-lab${references.lab}`,
+                    `lab-${references.lab}`
+                ];
+                query = query.or(
+                    labPatterns.map(pattern => 
+                        `lab_id.ilike.%${pattern}%`
+                    ).join(',')
+                );
+            }
+
+            // Apply additional filters
+            if (filters.contentType) {
+                query = query.eq('content_type', filters.contentType);
+            }
+
+            // Get all matching chunks
+            const { data: chunks, error } = await query.limit(limit);
+
+            if (error) {
+                console.error('[RetrievalService] Database error in exact match search:', error);
+                if (error.code === '42501' || error.message?.includes('row-level security')) {
+                    console.error('[RetrievalService] RLS policy blocked access.');
+                    return [];
+                }
+                throw error;
+            }
+
+            console.log(`[RetrievalService] Exact match search found ${chunks?.length || 0} chunks`, {
+                references,
+                filters
+            });
+
+            if (!chunks || chunks.length === 0) {
+                console.warn('[RetrievalService] No chunks found for exact match:', references);
+                return [];
+            }
+
+            // Add step number filtering if specified (may need to check content or metadata)
+            if (references.step !== null && references.step !== undefined) {
+                // Filter chunks that contain step information
+                // This is a heuristic - step info might be in content or metadata
+                const stepFiltered = chunks.filter(chunk => {
+                    const content = (chunk.content || '').toLowerCase();
+                    const stepPatterns = [
+                        `step ${references.step}`,
+                        `step ${references.step}:`,
+                        `step ${references.step}.`,
+                        `step${references.step}`
+                    ];
+                    return stepPatterns.some(pattern => content.includes(pattern));
+                });
+
+                if (stepFiltered.length > 0) {
+                    console.log(`[RetrievalService] Filtered to ${stepFiltered.length} chunks matching step ${references.step}`);
+                    return stepFiltered.map(chunk => ({ ...chunk, similarity: 1.0, exactMatch: true }));
+                }
+            }
+
+            // Return chunks with exact match flag
+            return chunks.map(chunk => ({ ...chunk, similarity: 1.0, exactMatch: true }));
+        } catch (error) {
+            console.error('[RetrievalService] Error in exact match search:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Retrieve ALL chunks from a specific chapter (for list requests)
+     * @param {Object} chapterRef - Chapter reference with day and/or chapter
+     * @param {string} courseId - Course identifier
+     * @param {Object} filters - Additional filters
+     * @returns {Promise<Array<Object>>} Array of all chunks from the chapter
+     */
+    async getAllChunksFromChapter(chapterRef, courseId, filters = {}) {
+        if (!courseId) {
+            throw new Error('courseId is required');
+        }
+
+        try {
+            // Verify user session for RLS
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) {
+                console.warn('[RetrievalService] No authenticated user session. RLS will block access.');
+            }
+
+            // Build query
+            let query = supabaseClient
+                .from('ai_coach_content_chunks')
+                .select('*')
+                .eq('course_id', courseId);
+
+            // Filter by day if specified
+            if (chapterRef.day !== null && chapterRef.day !== undefined) {
+                query = query.or(`day.eq.${chapterRef.day},day.eq.day${chapterRef.day},day.eq."day${chapterRef.day}"`);
+            }
+
+            // Filter by chapter if specified
+            if (chapterRef.chapter !== null && chapterRef.chapter !== undefined) {
+                const chapterPatterns = [
+                    `chapter-${chapterRef.chapter}`,
+                    `ch${chapterRef.chapter}`,
+                    `day${chapterRef.day || ''}-ch${chapterRef.chapter}`,
+                    `chapter ${chapterRef.chapter}`
+                ];
+                query = query.or(
+                    chapterPatterns.map(pattern => 
+                        `chapter_id.ilike.%${pattern}%,chapter_title.ilike.%${pattern}%`
+                    ).join(',')
+                );
+            }
+
+            // Apply additional filters
+            if (filters.contentType) {
+                query = query.eq('content_type', filters.contentType);
+            }
+
+            // Get ALL chunks (no limit for list requests)
+            const { data: chunks, error } = await query;
+
+            if (error) {
+                console.error('[RetrievalService] Database error in getAllChunksFromChapter:', error);
+                if (error.code === '42501' || error.message?.includes('row-level security')) {
+                    console.error('[RetrievalService] RLS policy blocked access.');
+                    return [];
+                }
+                throw error;
+            }
+
+            console.log(`[RetrievalService] Retrieved ${chunks?.length || 0} chunks from chapter`, {
+                chapterRef,
+                filters
+            });
+
+            if (!chunks || chunks.length === 0) {
+                console.warn('[RetrievalService] No chunks found for chapter:', chapterRef);
+                return [];
+            }
+
+            // Return all chunks with high similarity score (they're all from the requested chapter)
+            return chunks.map(chunk => ({ 
+                ...chunk, 
+                similarity: 1.0, 
+                exactMatch: true,
+                fromListRequest: true 
+            }));
+        } catch (error) {
+            console.error('[RetrievalService] Error in getAllChunksFromChapter:', error);
+            return [];
+        }
     }
 }
 

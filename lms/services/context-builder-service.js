@@ -112,15 +112,57 @@ class ContextBuilderService {
     }
 
     /**
-     * Prioritize chunks based on question and progress
+     * Prioritize chunks based on question and progress, with metadata support
      * @param {Array<Object>} chunks - Content chunks
      * @param {string} question - User question
      * @param {Object} progress - Progress context
      * @returns {Array<Object>} Prioritized chunks
      */
     prioritizeChunks(chunks, question, progress) {
+        const lowerQuestion = question.toLowerCase();
+        
+        // Extract topic keywords from question for topic matching
+        const questionTopics = this._extractTopicKeywords(question);
+
         const prioritized = chunks.map(chunk => {
             let priority = chunk.similarity || 0;
+
+            // Get metadata (from chunk.metadata or direct properties)
+            const metadata = chunk.metadata || {};
+            const coverageLevel = metadata.coverage_level || chunk.coverage_level;
+            const completenessScore = metadata.completeness_score ?? chunk.completeness_score ?? 0.5;
+            const isDedicatedTopic = metadata.is_dedicated_topic_chapter ?? chunk.is_dedicated_topic_chapter ?? false;
+            const primaryTopic = metadata.primary_topic || chunk.primary_topic;
+
+            // HIGHEST PRIORITY: Dedicated topic chapters that match question topic
+            if (isDedicatedTopic && primaryTopic) {
+                const topicMatch = questionTopics.some(qt => 
+                    primaryTopic.toLowerCase().includes(qt) || qt.includes(primaryTopic.toLowerCase())
+                );
+                if (topicMatch) {
+                    priority += 0.5; // Strong boost for dedicated chapters matching topic
+                    console.log(`[ContextBuilder] Boosted priority for dedicated topic chapter: ${primaryTopic}`);
+                }
+            }
+
+            // HIGH PRIORITY: Comprehensive coverage
+            if (coverageLevel === 'comprehensive' || coverageLevel === 'advanced') {
+                priority += 0.3;
+            } else if (coverageLevel === 'intermediate') {
+                priority += 0.15;
+            } else if (coverageLevel === 'introduction') {
+                // Deprioritize introductions when comprehensive coverage exists
+                priority -= 0.1;
+            }
+
+            // Boost based on completeness score
+            if (completenessScore > 0.7) {
+                priority += 0.2;
+            } else if (completenessScore > 0.5) {
+                priority += 0.1;
+            } else if (completenessScore < 0.3) {
+                priority -= 0.1; // Deprioritize low completeness
+            }
 
             // Boost priority for current chapter
             if (progress.currentChapter && 
@@ -146,11 +188,46 @@ class ContextBuilderService {
                 priority += 0.1;
             }
 
+            // Boost for exact matches (from Phase 2)
+            if (chunk.exactMatch === true) {
+                priority += 0.4; // Strong boost for exact matches
+            }
+
             return { ...chunk, priority };
         });
 
         // Sort by priority
-        return prioritized.sort((a, b) => b.priority - a.priority);
+        const sorted = prioritized.sort((a, b) => b.priority - a.priority);
+
+        // Log prioritization results for debugging
+        if (sorted.length > 0) {
+            const topChunk = sorted[0];
+            console.log(`[ContextBuilder] Top prioritized chunk:`, {
+                chapter: topChunk.chapter_title || topChunk.chapter_id,
+                priority: topChunk.priority.toFixed(2),
+                coverage_level: topChunk.metadata?.coverage_level || topChunk.coverage_level,
+                is_dedicated: topChunk.metadata?.is_dedicated_topic_chapter || topChunk.is_dedicated_topic_chapter
+            });
+        }
+
+        return sorted;
+    }
+
+    /**
+     * Extract topic keywords from question
+     * @param {string} question - User question
+     * @returns {Array<string>} Topic keywords
+     */
+    _extractTopicKeywords(question) {
+        const lowerQuestion = question.toLowerCase();
+        const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'can', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'different', 'difference', 'key', 'elements', 'examples', 'list']);
+        
+        // Extract significant words (length > 4, not common words)
+        const words = lowerQuestion.split(/\s+/)
+            .map(w => w.replace(/[^\w]/g, ''))
+            .filter(w => w.length > 4 && !commonWords.has(w));
+        
+        return words;
     }
 
     /**

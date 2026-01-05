@@ -114,6 +114,76 @@ class QueryProcessorService {
     }
 
     /**
+     * Parse specific references from question (Day X, Lab Y, Step Z, Chapter N)
+     * @param {string} question - User question
+     * @returns {Object} Parsed references with day, lab, step, chapter
+     */
+    parseSpecificReferences(question) {
+        const references = {
+            day: null,
+            lab: null,
+            step: null,
+            chapter: null,
+            hasSpecificReference: false
+        };
+
+        // Pattern: "Day 4, Chapter 2" or "Day 4 Chapter 2" or "day 4 ch 2"
+        const dayChapterMatch = question.match(/day\s*(\d+)[,\s]+chapter\s*(\d+)/i);
+        if (dayChapterMatch) {
+            references.day = parseInt(dayChapterMatch[1]);
+            references.chapter = parseInt(dayChapterMatch[2]);
+            references.hasSpecificReference = true;
+        } else {
+            // Individual day reference: "Day 2", "day 15"
+            const dayMatch = question.match(/day\s*(\d+)/i);
+            if (dayMatch) {
+                references.day = parseInt(dayMatch[1]);
+                references.hasSpecificReference = true;
+            }
+
+            // Individual chapter reference: "Chapter 2", "chapter 3", "ch 2"
+            const chapterMatch = question.match(/chapter\s*(\d+)|ch\s*(\d+)/i);
+            if (chapterMatch) {
+                references.chapter = parseInt(chapterMatch[1] || chapterMatch[2]);
+                references.hasSpecificReference = true;
+            }
+        }
+
+        // Lab reference: "Lab 1", "lab 2", "day2-lab1"
+        const labMatch = question.match(/lab\s*(\d+)|day\d+-lab(\d+)/i);
+        if (labMatch) {
+            references.lab = parseInt(labMatch[1] || labMatch[2]);
+            references.hasSpecificReference = true;
+        }
+
+        // Step reference: "Step 3", "step 1"
+        const stepMatch = question.match(/step\s*(\d+)/i);
+        if (stepMatch) {
+            references.step = parseInt(stepMatch[1]);
+            references.hasSpecificReference = true;
+        }
+
+        // Pattern: "Step 3 of Lab 1 on Day 2"
+        const stepLabDayMatch = question.match(/step\s*(\d+)\s+of\s+lab\s*(\d+)\s+on\s+day\s*(\d+)/i);
+        if (stepLabDayMatch) {
+            references.step = parseInt(stepLabDayMatch[1]);
+            references.lab = parseInt(stepLabDayMatch[2]);
+            references.day = parseInt(stepLabDayMatch[3]);
+            references.hasSpecificReference = true;
+        }
+
+        // Pattern: "Lab 1 Step 3" or "Lab 1, Step 3"
+        const labStepMatch = question.match(/lab\s*(\d+)[,\s]+step\s*(\d+)/i);
+        if (labStepMatch && !references.step) {
+            references.lab = parseInt(labStepMatch[1]);
+            references.step = parseInt(labStepMatch[2]);
+            references.hasSpecificReference = true;
+        }
+
+        return references;
+    }
+
+    /**
      * Detect if learner is struggling with labs
      * @param {string} learnerId - Learner ID
      * @param {string} courseId - Course identifier

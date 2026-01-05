@@ -72,8 +72,17 @@ class AICoachWidget {
                 LoadingState = loadingModule.default;
             }
             if (!supabaseClient) {
-                const supabaseModule = await import('../../../services/supabase-client.js');
-                supabaseClient = supabaseModule.supabaseClient;
+                try {
+                    const supabaseModule = await import('../../../services/supabase-client.js');
+                    // Use getSupabaseClient() function instead of const export for better error handling
+                    if (supabaseModule.getSupabaseClient) {
+                        supabaseClient = supabaseModule.getSupabaseClient();
+                    } else if (supabaseModule.supabaseClient) {
+                        supabaseClient = supabaseModule.supabaseClient;
+                    }
+                } catch (error) {
+                    console.warn('[AICoachWidget] Failed to load supabaseClient during init:', error);
+                }
             }
         } catch (error) {
             console.error('[AICoachWidget] Error loading basic services:', error);
@@ -289,12 +298,17 @@ class AICoachWidget {
             // Clear cache before fetching to ensure fresh data
             trainerPersonalizationService.clearCache(this.currentCourseId, learnerId);
             
-            const coachName = await trainerPersonalizationService.getCoachName(this.currentCourseId, learnerId);
-            
-            console.log(`[AICoachWidget] Retrieved coach name: "${coachName}" for learner ${learnerId} in course ${this.currentCourseId}`);
+            let coachName;
+            try {
+                coachName = await trainerPersonalizationService.getCoachName(this.currentCourseId, learnerId);
+                console.log(`[AICoachWidget] Retrieved coach name: "${coachName}" for learner ${learnerId} in course ${this.currentCourseId}`);
+            } catch (error) {
+                console.error(`[AICoachWidget] Error fetching coach name:`, error);
+                coachName = 'AI Coach';
+            }
             
             if (!coachName || coachName === 'AI Coach') {
-                console.warn(`[AICoachWidget] Personalization may not be set up correctly for learner ${learnerId} in course ${this.currentCourseId}`);
+                console.warn(`[AICoachWidget] Personalization may not be set up correctly for learner ${learnerId} in course ${this.currentCourseId}. Coach name: "${coachName}"`);
             }
             
             return coachName || 'AI Coach';
@@ -634,25 +648,46 @@ class AICoachWidget {
     async loadConversationHistory() {
         if (!this.currentUser || !this.currentCourseId) return;
 
-        // Ensure supabaseClient is loaded
-        if (!supabaseClient) {
+        // Get supabaseClient - use function form for better error handling
+        let client = supabaseClient;
+        if (!client) {
             try {
                 const supabaseModule = await import('../../../services/supabase-client.js');
-                supabaseClient = supabaseModule.supabaseClient;
+                // Always use getSupabaseClient() function - it handles initialization better
+                if (supabaseModule.getSupabaseClient) {
+                    try {
+                        client = supabaseModule.getSupabaseClient();
+                        // Update the module-level variable for future use
+                        supabaseClient = client;
+                    } catch (initError) {
+                        // getSupabaseClient() might throw if config is not loaded
+                        console.warn('[AICoachWidget] Failed to initialize supabaseClient:', initError);
+                        return;
+                    }
+                } else if (supabaseModule.supabaseClient) {
+                    client = supabaseModule.supabaseClient;
+                    supabaseClient = client;
+                } else {
+                    console.warn('[AICoachWidget] supabaseClient not available in module');
+                    return;
+                }
             } catch (error) {
-                console.warn('[AICoachWidget] Failed to load supabaseClient:', error);
+                console.warn('[AICoachWidget] Failed to load supabaseClient module:', error);
                 return;
             }
         }
 
-        // Check if supabaseClient is still null (e.g., if Supabase is not configured)
-        if (!supabaseClient) {
-            console.warn('[AICoachWidget] supabaseClient is not available, skipping conversation history');
+        // Final check - ensure client is valid before use
+        if (!client || typeof client.from !== 'function') {
+            console.warn('[AICoachWidget] supabaseClient is not available or invalid, skipping conversation history', {
+                client: client,
+                hasFrom: client ? typeof client.from : 'N/A'
+            });
             return;
         }
 
         try {
-            const { data: history } = await supabaseClient
+            const { data: history } = await client
                 .from('ai_coach_conversation_history')
                 .select(`
                     query_id,
@@ -724,14 +759,21 @@ class AICoachWidget {
             if (!supabaseClient) {
                 try {
                     const supabaseModule = await import('../../../services/supabase-client.js');
-                    supabaseClient = supabaseModule.supabaseClient;
+                    // Use getSupabaseClient() function instead of const export for better error handling
+                    if (supabaseModule.getSupabaseClient) {
+                        supabaseClient = supabaseModule.getSupabaseClient();
+                    } else if (supabaseModule.supabaseClient) {
+                        supabaseClient = supabaseModule.supabaseClient;
+                    } else {
+                        throw new Error('Database not available');
+                    }
                 } catch (error) {
                     console.warn('[AICoachWidget] Failed to load supabaseClient for feedback:', error);
                     throw new Error('Database not available');
                 }
             }
 
-            if (!supabaseClient) {
+            if (!supabaseClient || typeof supabaseClient.from !== 'function') {
                 throw new Error('Database not available');
             }
 

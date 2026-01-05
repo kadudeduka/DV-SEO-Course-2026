@@ -142,6 +142,7 @@ class LLMService {
                             role: 'system',
                             content: `You are an intent classifier for an educational LMS. Classify the user's question into one of these categories:
 - course_content: Questions about course material, concepts, definitions
+- list_request: Questions asking to "list", "enumerate", "show all", "what are all" items/examples from a chapter
 - navigation: Questions about course structure, where to find content, how to navigate
 - lab_guidance: Questions about labs, assignments, exercises (NOT asking for answers)
 - lab_struggle: Indications of struggling with labs (stuck, help, don't understand)
@@ -168,7 +169,7 @@ Respond with ONLY the category name.`
             const intent = data.choices[0].message.content.trim().toLowerCase();
             
             // Validate intent
-            const validIntents = ['course_content', 'navigation', 'lab_guidance', 'lab_struggle', 'out_of_scope'];
+            const validIntents = ['course_content', 'list_request', 'navigation', 'lab_guidance', 'lab_struggle', 'out_of_scope'];
             return validIntents.includes(intent) ? intent : 'course_content';
         } catch (error) {
             console.error('[LLMService] Error classifying intent:', error);
@@ -183,6 +184,12 @@ Respond with ONLY the category name.`
      */
     _classifyIntentFallback(question) {
         const lowerQuestion = question.toLowerCase();
+        
+        // List request indicators
+        const listKeywords = ['list', 'enumerate', 'show all', 'what are all', 'list all', 'list the', 'list examples'];
+        if (listKeywords.some(keyword => lowerQuestion.includes(keyword))) {
+            return 'list_request';
+        }
         
         // Lab struggle indicators
         const struggleKeywords = ['stuck', 'help', "don't understand", "can't", 'how to do', 'what should i do'];
@@ -261,14 +268,20 @@ Respond with ONLY the category name.`
             }
         }
         
-        // Add conciseness instructions
+        // Add comprehensive response instructions
         fullSystemPrompt += `\n\nRESPONSE STYLE:
 - Be CONCISE: Get to the point quickly, avoid unnecessary words
-- Be COMPLETE: Answer fully, don't leave gaps
-- Optimal length: 50-150 words
-- Structure: Answer → Details → References → Next Steps
-- Use bullet points for lists
-- Avoid filler words and repetition`;
+- Be COMPLETE: Answer fully, don't leave gaps - expand on course content when needed
+- Be RELEVANT: Focus on what was asked, exclude unrelated details
+- Optimal length: 50-300 words (adjust based on question complexity - comprehensive questions may need more)
+- Structure: Direct Answer → Key Points (point-based) → References → Next Steps (if relevant)
+- Use bullet points for lists and structured formatting
+- Avoid filler words and repetition
+- For "how-to" questions: Provide concise, point-based steps highlighting key actions
+- For "list" requests: Extract and enumerate ALL items from the specified chapter (not just a summary)
+- Exclude lab assignment logistics (documentation, submission templates, assignment steps) unless explicitly asked
+- Distinguish between conceptual questions (explain concept) and lab questions (provide lab guidance)
+- When a specific chapter is mentioned, extract content ONLY from that chapter and ensure references match`;
 
         const messages = [
             { role: 'system', content: fullSystemPrompt },

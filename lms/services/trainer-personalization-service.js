@@ -65,18 +65,21 @@ class TrainerPersonalizationService {
                     .eq('course_id', courseId)
                     .eq('user_id', learnerId)
                     .not('trainer_id', 'is', null)
-                    .single();
+                    .maybeSingle();
 
-                if (!allocationError && allocation && allocation.trainer_id) {
+                if (allocationError) {
+                    console.warn(`[TrainerPersonalization] Error looking up trainer for learner ${learnerId} in course ${courseId}:`, allocationError);
+                } else if (allocation && allocation.trainer_id) {
                     trainerId = allocation.trainer_id;
-                    console.log(`[TrainerPersonalization] Found trainer ${trainerId} for learner ${learnerId}`);
+                    console.log(`[TrainerPersonalization] Found trainer ${trainerId} for learner ${learnerId} in course ${courseId}`);
                 } else {
-                    console.warn(`[TrainerPersonalization] No trainer found for learner ${learnerId} in course ${courseId}:`, allocationError);
+                    console.log(`[TrainerPersonalization] No trainer allocation found for learner ${learnerId} in course ${courseId} (allocation: ${allocation ? JSON.stringify(allocation) : 'null'})`);
                 }
             }
 
             // Fallback: Get trainer from any allocation for this course
             if (!trainerId) {
+                console.log(`[TrainerPersonalization] No specific trainer found, trying fallback: any trainer for course ${courseId}`);
                 const { data: allocation, error: allocationError } = await supabaseClient
                     .from('course_allocations')
                     .select('trainer_id')
@@ -85,12 +88,18 @@ class TrainerPersonalizationService {
                     .limit(1)
                     .maybeSingle();
 
-                if (!allocationError && allocation && allocation.trainer_id) {
+                if (allocationError) {
+                    console.warn(`[TrainerPersonalization] Error in fallback query for course ${courseId}:`, allocationError);
+                } else if (allocation && allocation.trainer_id) {
                     trainerId = allocation.trainer_id;
+                    console.log(`[TrainerPersonalization] Found fallback trainer ${trainerId} for course ${courseId}`);
+                } else {
+                    console.log(`[TrainerPersonalization] No fallback trainer found for course ${courseId}`);
                 }
             }
 
             if (!trainerId) {
+                console.warn(`[TrainerPersonalization] No trainer ID found for course ${courseId}, learner ${learnerId || 'N/A'}. Cannot fetch personalization.`);
                 return null;
             }
 
@@ -154,14 +163,16 @@ class TrainerPersonalizationService {
                     } else {
                         console.warn(`[TrainerPersonalization] No global personalization found for trainer ${trainerId}`);
                     }
-                    return null;
+                    // Fallback: Get trainer's actual name from users table
+                    return await this._getTrainerNameFallback(trainerId);
                 }
             }
 
             // Final check - ensure personalization is enabled
             if (!personalization || !personalization.personalization_enabled) {
                 console.warn(`[TrainerPersonalization] Personalization found but is disabled or null`);
-                return null;
+                // Fallback: Get trainer's actual name from users table
+                return await this._getTrainerNameFallback(trainerId);
             }
 
             // Cache the result
@@ -245,6 +256,65 @@ class TrainerPersonalizationService {
         }
 
         return infoString.trim() || null;
+    }
+
+    /**
+     * Get trainer name as fallback when personalization is not set up
+     * @param {string} trainerId - Trainer user ID
+     * @returns {Promise<Object|null>} Personalization object with trainer's name, or null
+     * @private
+     */
+    async _getTrainerNameFallback(trainerId) {
+        if (!trainerId) {
+            return null;
+        }
+
+        try {
+            console.log(`[TrainerPersonalization] Fetching trainer name as fallback for trainer ${trainerId}`);
+            const { data: trainer, error } = await supabaseClient
+                .from('users')
+                .select('id, email, name, full_name')
+                .eq('id', trainerId)
+                .eq('role', 'trainer')
+                .maybeSingle();
+
+            if (error) {
+                console.warn(`[TrainerPersonalization] Error fetching trainer name:`, error);
+                return null;
+            }
+
+            if (!trainer) {
+                console.warn(`[TrainerPersonalization] Trainer not found: ${trainerId}`);
+                return null;
+            }
+
+            // Construct name from available fields
+            // The users table has: name (NOT NULL), full_name (nullable), email
+            let trainerName = 'AI Coach';
+            if (trainer.name && trainer.name.trim() !== '') {
+                trainerName = trainer.name.trim();
+            } else if (trainer.full_name && trainer.full_name.trim() !== '') {
+                trainerName = trainer.full_name.trim();
+            } else if (trainer.email) {
+                // Use email username as fallback
+                trainerName = trainer.email.split('@')[0];
+            }
+
+            console.log(`[TrainerPersonalization] Using trainer name fallback: "${trainerName}" for trainer ${trainerId}`);
+
+            // Return a personalization-like object with the trainer's name
+            return {
+                coach_name: trainerName,
+                trainer_id: trainerId,
+                course_id: null,
+                personalization_enabled: true, // Enable it so it can be used
+                trainer_info: {},
+                share_level: 'name_only'
+            };
+        } catch (error) {
+            console.error(`[TrainerPersonalization] Error in fallback:`, error);
+            return null;
+        }
     }
 
     /**
