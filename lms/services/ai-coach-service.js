@@ -60,6 +60,9 @@ class AICoachService {
             // 4. Classify intent
             const context = await contextBuilderService.getCurrentContext(learnerId, courseId);
             const intent = await queryProcessorService.classifyIntent(processedQuestion, context);
+            
+            // Determine if this is a list request (needed early for chunk retrieval logic)
+            const isListRequest = intent === 'list_request';
 
             // 5. Check if out of scope
             if (intent === 'out_of_scope') {
@@ -88,9 +91,26 @@ class AICoachService {
             };
             console.log('[AICoachService] Searching for chunks with filters:', searchFilters);
             
-            let similarChunks = [];
+            // Extract topic keywords early for dedicated chapter search
+            const topicKeywords = contextBuilderService.extractTopicKeywords(processedQuestion);
+            console.log('[AICoachService] Extracted topic keywords:', topicKeywords);
             
-            // If specific references are found, try exact match first
+            let similarChunks = [];
+            let dedicatedChunks = [];
+            
+            // STEP 1: Search for dedicated chapters by topic (if topics detected)
+            // This ensures we find dedicated chapters even if they don't score high in semantic search
+            if (topicKeywords.length > 0 && !specificReferences.hasSpecificReference) {
+                console.log('[AICoachService] Searching for dedicated chapters by topic...');
+                dedicatedChunks = await retrievalService.searchDedicatedChaptersByTopic(
+                    topicKeywords,
+                    courseId,
+                    searchFilters
+                );
+                console.log(`[AICoachService] Found ${dedicatedChunks.length} dedicated chapters matching topics`);
+            }
+            
+            // STEP 2: Regular search (exact match or hybrid search)
             if (specificReferences.hasSpecificReference) {
                 console.log('[AICoachService] Specific references detected, attempting exact match...');
                 const exactMatchChunks = await retrievalService.searchExactMatch(
@@ -110,7 +130,7 @@ class AICoachService {
                         processedQuestion,
                         courseId,
                         searchFilters,
-                        15
+                        20
                     );
                 }
             } else {
@@ -119,10 +139,39 @@ class AICoachService {
                     processedQuestion,
                     courseId,
                     searchFilters,
-                    15 // Get more chunks for filtering
+                    20
                 );
                 console.log(`[AICoachService] Hybrid search found ${similarChunks.length} chunks`);
             }
+            
+            // STEP 3: Merge dedicated chapters with regular search results
+            // Deduplicate by chunk ID, keeping dedicated chapters if they appear in both
+            const chunkMap = new Map();
+            
+            // Add regular search results first
+            similarChunks.forEach(chunk => {
+                chunkMap.set(chunk.id, chunk);
+            });
+            
+            // Add dedicated chapters (they override regular results if duplicate)
+            dedicatedChunks.forEach(chunk => {
+                const existing = chunkMap.get(chunk.id);
+                if (existing) {
+                    // Merge: keep dedicated chapter properties but preserve higher similarity if exists
+                    chunkMap.set(chunk.id, {
+                        ...existing,
+                        ...chunk,
+                        similarity: Math.max(existing.similarity || 0, chunk.similarity || 0.9),
+                        isDedicatedTopicMatch: true
+                    });
+                } else {
+                    chunkMap.set(chunk.id, chunk);
+                }
+            });
+            
+            // Convert back to array
+            similarChunks = Array.from(chunkMap.values());
+            console.log(`[AICoachService] After merging dedicated chapters: ${similarChunks.length} total chunks`);
             
             // Fallback: If no results, try keyword-only search
             if (similarChunks.length === 0) {
@@ -133,7 +182,7 @@ class AICoachService {
                     searchFilters,
                     10
                 );
-                similarChunks = keywordChunks.map(chunk => ({ ...chunk, similarity: 0.5 })); // Give keyword results a default similarity
+                similarChunks = keywordChunks.map(chunk => ({ ...chunk, similarity: 0.5 }));
                 console.log(`[AICoachService] Keyword search found ${similarChunks.length} chunks`);
             }
 
@@ -275,7 +324,7 @@ class AICoachService {
 
             // 13. Generate answer
             const isLabGuidance = intent === 'lab_guidance' || intent === 'lab_struggle';
-            const isListRequest = intent === 'list_request';
+            // Note: isListRequest is already defined above after intent classification
             
             // Adjust token limits for comprehensive questions or list requests
             let maxTokens = 500;

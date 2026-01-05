@@ -229,14 +229,19 @@ class RetrievalService {
         // Generate query embedding
         const queryEmbedding = await llmService.generateEmbedding(query);
 
+        // Increase search limit to ensure we find dedicated chapters even if they score slightly lower
+        // This helps ensure comprehensive/dedicated chapters are included in results
+        const searchLimit = limit * 3; // Increased from limit * 2 to get more candidates
+
         // Semantic search
-        const semanticResults = await this.searchSimilarChunks(queryEmbedding, courseId, filters, limit * 2);
+        const semanticResults = await this.searchSimilarChunks(queryEmbedding, courseId, filters, searchLimit);
 
         // Keyword search (simple text matching)
         const keywordResults = await this.keywordSearch(query, courseId, filters, limit * 2);
 
         // Extract topic keywords from query for dedicated chapter matching
-        const topicKeywords = this._extractTopicKeywords(query);
+        // Use improved topic extraction
+        const topicKeywords = this._extractTopicKeywordsImproved(query);
 
         // Combine and deduplicate
         const combined = new Map();
@@ -251,11 +256,40 @@ class RetrievalService {
             const primaryTopic = metadata.primary_topic || chunk.primary_topic;
             
             if (isDedicatedTopic && primaryTopic && topicKeywords.length > 0) {
-                const topicMatch = topicKeywords.some(tk => 
-                    primaryTopic.toLowerCase().includes(tk) || tk.includes(primaryTopic.toLowerCase())
-                );
+                // Enhanced topic matching (same logic as context builder)
+                const primaryTopicLower = primaryTopic.toLowerCase();
+                const topicMatch = topicKeywords.some(tk => {
+                    const tkLower = tk.toLowerCase();
+                    
+                    // Exact or contains match
+                    if (primaryTopicLower.includes(tkLower) || tkLower.includes(primaryTopicLower)) {
+                        return true;
+                    }
+                    
+                    // Word-by-word matching
+                    const primaryWords = primaryTopicLower.split(/\s+/).filter(w => w.length > 3);
+                    const allWordsMatch = primaryWords.every(pw => 
+                        topicKeywords.some(tk2 => tk2.includes(pw) || pw.includes(tk2))
+                    );
+                    if (allWordsMatch && primaryWords.length >= 2) {
+                        return true;
+                    }
+                    
+                    // Acronym expansion
+                    if (tkLower.length <= 5 && /^[a-z]+$/.test(tkLower)) {
+                        const primaryWordsInQuery = primaryWords.some(pw => 
+                            query.toLowerCase().includes(pw)
+                        );
+                        if (primaryWordsInQuery) {
+                            return true;
+                        }
+                    }
+                    
+                    return false;
+                });
+                
                 if (topicMatch) {
-                    score += 0.3; // Boost for dedicated chapters matching topic
+                    score += 0.5; // Increased boost from 0.3 to 0.5 for dedicated chapters
                 }
             }
             
@@ -285,6 +319,66 @@ class RetrievalService {
      * @param {string} query - Search query
      * @returns {Array<string>} Topic keywords
      */
+    /**
+     * Extract topic keywords from query (improved version)
+     * Recognizes multi-word topics, acronyms, and technical terms
+     * @param {string} query - User query
+     * @returns {Array<string>} Topic keywords and phrases
+     */
+    _extractTopicKeywordsImproved(query) {
+        const lowerQuery = query.toLowerCase();
+        const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'can', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'different', 'difference', 'key', 'elements', 'examples', 'list', 'case', 'success', 'about']);
+        
+        const topics = [];
+        
+        // 1. Extract multi-word technical terms (2-4 words that are commonly used together)
+        const technicalPhrases = [
+            'answer engine optimization', 'aeo',
+            'search engine optimization', 'seo',
+            'technical seo', 'on-page seo', 'off-page seo',
+            'ecommerce seo', 'local seo',
+            'keyword research', 'keyword mapping',
+            'content marketing', 'link building',
+            'page experience', 'core web vitals',
+            'structured data', 'schema markup',
+            'featured snippets', 'zero-click search',
+            'search intent', 'user intent',
+            'serp features', 'serp analysis',
+            'canonical tags', 'meta tags',
+            'robots.txt', 'sitemap',
+            'internal linking', 'external linking',
+            'backlinks', 'domain authority',
+            'page speed', 'mobile optimization',
+            'voice search', 'ai search'
+        ];
+        
+        for (const phrase of technicalPhrases) {
+            if (lowerQuery.includes(phrase)) {
+                topics.push(phrase);
+                // Also add individual significant words from the phrase
+                const phraseWords = phrase.split(/\s+/).filter(w => w.length > 3 && !commonWords.has(w));
+                topics.push(...phraseWords);
+            }
+        }
+        
+        // 2. Extract acronyms (2-5 uppercase letters, possibly with periods)
+        const acronymPattern = /\b([A-Z]{2,5}(?:\.[A-Z]{2,5})*)\b/g;
+        const acronyms = lowerQuery.match(acronymPattern);
+        if (acronyms) {
+            topics.push(...acronyms.map(a => a.toLowerCase().replace(/\./g, '')));
+        }
+        
+        // 3. Extract significant individual words (length > 3, not common words)
+        const words = lowerQuery.split(/\s+/)
+            .map(w => w.replace(/[^\w]/g, ''))
+            .filter(w => w.length > 3 && !commonWords.has(w) && !topics.includes(w));
+        
+        topics.push(...words);
+        
+        // 4. Remove duplicates and return
+        return [...new Set(topics)];
+    }
+
     _extractTopicKeywords(query) {
         const lowerQuery = query.toLowerCase();
         const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'can', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'different', 'difference', 'key', 'elements', 'examples', 'list', 'are', 'is', 'what']);
@@ -549,6 +643,172 @@ class RetrievalService {
             }));
         } catch (error) {
             console.error('[RetrievalService] Error in getAllChunksFromChapter:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Search for dedicated topic chapters by primary_topic
+     * This ensures we find dedicated chapters even if they don't score high in semantic search
+     * @param {Array<string>} topicKeywords - Topic keywords extracted from query
+     * @param {string} courseId - Course identifier
+     * @param {Object} filters - Additional filters
+     * @returns {Promise<Array<Object>>} Array of dedicated chapter chunks
+     */
+    async searchDedicatedChaptersByTopic(topicKeywords, courseId, filters = {}) {
+        if (!topicKeywords || topicKeywords.length === 0) {
+            return [];
+        }
+
+        try {
+            console.log('[RetrievalService] Searching for dedicated chapters by topic:', topicKeywords);
+
+            // Search strategy: Try multiple approaches to find dedicated chapters
+            // 1. Search by metadata (is_dedicated_topic_chapter = true)
+            // 2. Search by chapter title/content containing topic keywords (fallback)
+            
+            let dedicatedChunks = [];
+            
+            // Approach 1: Search by metadata
+            let query = supabaseClient
+                .from('ai_coach_content_chunks')
+                .select('*')
+                .eq('course_id', courseId)
+                .eq('is_dedicated_topic_chapter', true)
+                .not('primary_topic', 'is', null);
+
+            // Apply filters
+            if (filters.contentType) {
+                query = query.eq('content_type', filters.contentType);
+            }
+
+            const { data: metadataChunks, error } = await query;
+
+            if (!error && metadataChunks && metadataChunks.length > 0) {
+                dedicatedChunks = metadataChunks;
+                console.log(`[RetrievalService] Found ${dedicatedChunks.length} chunks with dedicated topic metadata`);
+            } else {
+                console.log('[RetrievalService] No chunks found with dedicated topic metadata, trying fallback search...');
+                
+                // Fallback: Search by chapter title/content containing topic keywords
+                // This helps when metadata isn't set but chapter is clearly about the topic
+                const topicSearchTerms = topicKeywords
+                    .filter(tk => tk.length > 3) // Only use substantial keywords
+                    .slice(0, 3); // Limit to top 3 keywords
+                
+                if (topicSearchTerms.length > 0) {
+                    let fallbackQuery = supabaseClient
+                        .from('ai_coach_content_chunks')
+                        .select('*')
+                        .eq('course_id', courseId)
+                        .eq('content_type', 'chapter'); // Only chapters
+                    
+                    // Search in chapter_title and content for topic keywords
+                    const searchPatterns = topicSearchTerms.map(term => 
+                        `chapter_title.ilike.%${term}%,content.ilike.%${term}%`
+                    );
+                    fallbackQuery = fallbackQuery.or(searchPatterns.join(','));
+                    
+                    // Get chunks from later days (Day 10+) as dedicated chapters are usually later
+                    // This helps find Chapter 20 which has AEO strategies
+                    fallbackQuery = fallbackQuery.gte('day', 10);
+                    
+                    if (filters.contentType) {
+                        fallbackQuery = fallbackQuery.eq('content_type', filters.contentType);
+                    }
+                    
+                    const { data: fallbackChunks, error: fallbackError } = await fallbackQuery.limit(50);
+                    
+                    if (!fallbackError && fallbackChunks && fallbackChunks.length > 0) {
+                        console.log(`[RetrievalService] Fallback search found ${fallbackChunks.length} potential dedicated chapters`);
+                        // Mark these as dedicated topic matches for prioritization
+                        dedicatedChunks = fallbackChunks.map(chunk => ({
+                            ...chunk,
+                            // Infer that these are dedicated chapters based on title/content match
+                            is_dedicated_topic_chapter: true,
+                            primary_topic: chunk.chapter_title || 'inferred from content'
+                        }));
+                    }
+                }
+            }
+
+            if (!dedicatedChunks || dedicatedChunks.length === 0) {
+                console.log('[RetrievalService] No dedicated chapters found via any method');
+                return [];
+            }
+
+            // Filter chunks where primary_topic or chapter_title/content matches topic keywords
+            const matchingChunks = dedicatedChunks.filter(chunk => {
+                const primaryTopic = (chunk.primary_topic || '').toLowerCase();
+                const chapterTitle = (chunk.chapter_title || '').toLowerCase();
+                const content = (chunk.content || '').toLowerCase();
+                
+                // Check if any topic keyword matches primary_topic, chapter_title, or content
+                return topicKeywords.some(topic => {
+                    const topicLower = topic.toLowerCase();
+                    
+                    // Match against primary_topic (if set)
+                    if (primaryTopic) {
+                        // Exact or contains match
+                        if (primaryTopic.includes(topicLower) || topicLower.includes(primaryTopic)) {
+                            return true;
+                        }
+                        
+                        // Word-by-word matching
+                        const primaryWords = primaryTopic.split(/\s+/).filter(w => w.length > 3);
+                        const topicWords = topicLower.split(/\s+/).filter(w => w.length > 3);
+                        
+                        if (primaryWords.length >= 2 && topicWords.length >= 2) {
+                            // Check if significant words overlap
+                            const overlap = primaryWords.filter(pw => 
+                                topicWords.some(tw => pw.includes(tw) || tw.includes(pw))
+                            );
+                            if (overlap.length >= Math.min(primaryWords.length, topicWords.length) * 0.6) {
+                                return true;
+                            }
+                        }
+                        
+                        // Acronym matching (e.g., "aeo" matches "answer engine optimization")
+                        if (topicLower.length <= 5 && /^[a-z]+$/.test(topicLower)) {
+                            const primaryWordsMatch = primaryWords.some(pw => 
+                                topicLower.includes(pw.substring(0, 1)) || 
+                                primaryTopic.split(/\s+/).map(w => w[0]).join('').toLowerCase() === topicLower
+                            );
+                            if (primaryWordsMatch) {
+                                return true;
+                            }
+                        }
+                    }
+                    
+                    // Fallback: Match against chapter_title or content (for chunks without primary_topic)
+                    if (chapterTitle.includes(topicLower) || content.includes(topicLower)) {
+                        return true;
+                    }
+                    
+                    // Check if topic words appear in chapter title
+                    const topicWords = topicLower.split(/\s+/).filter(w => w.length > 3);
+                    if (topicWords.length >= 2) {
+                        const wordsInTitle = topicWords.filter(tw => chapterTitle.includes(tw));
+                        if (wordsInTitle.length >= Math.min(2, topicWords.length)) {
+                            return true;
+                        }
+                    }
+                    
+                    return false;
+                });
+            });
+
+            console.log(`[RetrievalService] Found ${matchingChunks.length} dedicated chapters matching topics`);
+
+            // Return chunks with high similarity score (they're dedicated chapters matching the topic)
+            return matchingChunks.map(chunk => ({
+                ...chunk,
+                similarity: 0.9, // High similarity for dedicated chapters
+                isDedicatedTopicMatch: true,
+                source: 'dedicated_chapter_search'
+            }));
+        } catch (error) {
+            console.error('[RetrievalService] Error in searchDedicatedChaptersByTopic:', error);
             return [];
         }
     }

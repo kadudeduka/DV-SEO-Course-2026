@@ -125,7 +125,32 @@ class ContextBuilderService {
         const questionTopics = this._extractTopicKeywords(question);
 
         const prioritized = chunks.map(chunk => {
+            // Start with similarity, but dedicated chapters get minimum priority floor
             let priority = chunk.similarity || 0;
+            
+            // CRITICAL: Dedicated chapters that match topic get minimum priority of 2.0
+            // This ensures they ALWAYS rank above non-dedicated chapters regardless of similarity
+            const isDedicatedMatch = chunk.isDedicatedTopicMatch === true || 
+                                     (chunk.is_dedicated_topic_chapter && chunk.primary_topic);
+            if (isDedicatedMatch) {
+                // Check if it matches the question topic
+                const primaryTopic = chunk.primary_topic || chunk.metadata?.primary_topic || '';
+                if (primaryTopic) {
+                    const topicMatch = questionTopics.some(qt => {
+                        const qtLower = qt.toLowerCase();
+                        const ptLower = primaryTopic.toLowerCase();
+                        return ptLower.includes(qtLower) || qtLower.includes(ptLower) ||
+                               primaryTopic.toLowerCase().split(/\s+/).some(pw => 
+                                   questionTopics.some(qt2 => qt2.includes(pw) || pw.includes(qt2))
+                               );
+                    });
+                    if (topicMatch) {
+                        // Set minimum priority to ensure dedicated chapters always win
+                        priority = Math.max(priority, 2.0);
+                        console.log(`[ContextBuilder] Dedicated chapter priority floor set to 2.0: ${primaryTopic}`);
+                    }
+                }
+            }
 
             // Get metadata (from chunk.metadata or direct properties)
             const metadata = chunk.metadata || {};
@@ -136,23 +161,68 @@ class ContextBuilderService {
 
             // HIGHEST PRIORITY: Dedicated topic chapters that match question topic
             if (isDedicatedTopic && primaryTopic) {
-                const topicMatch = questionTopics.some(qt => 
-                    primaryTopic.toLowerCase().includes(qt) || qt.includes(primaryTopic.toLowerCase())
-                );
+                const primaryTopicLower = primaryTopic.toLowerCase();
+                
+                // Enhanced topic matching:
+                // 1. Exact match or contains match
+                // 2. Word-by-word matching (e.g., "answer engine optimization" matches "answer", "engine", "optimization")
+                // 3. Acronym matching (e.g., "AEO" matches "answer engine optimization")
+                // 4. Partial phrase matching
+                const topicMatch = questionTopics.some(qt => {
+                    const qtLower = qt.toLowerCase();
+                    
+                    // Exact or contains match
+                    if (primaryTopicLower.includes(qtLower) || qtLower.includes(primaryTopicLower)) {
+                        return true;
+                    }
+                    
+                    // Word-by-word matching: check if all significant words from primary topic appear in question topics
+                    const primaryWords = primaryTopicLower.split(/\s+/).filter(w => w.length > 3);
+                    const allWordsMatch = primaryWords.every(pw => 
+                        questionTopics.some(qt2 => qt2.includes(pw) || pw.includes(qt2))
+                    );
+                    if (allWordsMatch && primaryWords.length >= 2) {
+                        return true;
+                    }
+                    
+                    // Acronym expansion: if question has acronym, check if primary topic words match
+                    // e.g., "aeo" -> check if "answer engine optimization" words are in question
+                    if (qtLower.length <= 5 && /^[a-z]+$/.test(qtLower)) {
+                        // Might be an acronym, check if primary topic words are in question
+                        const primaryWordsInQuestion = primaryWords.some(pw => 
+                            lowerQuestion.includes(pw)
+                        );
+                        if (primaryWordsInQuestion) {
+                            return true;
+                        }
+                    }
+                    
+                    return false;
+                });
+                
                 if (topicMatch) {
-                    priority += 0.5; // Strong boost for dedicated chapters matching topic
-                    console.log(`[ContextBuilder] Boosted priority for dedicated topic chapter: ${primaryTopic}`);
+                    priority += 1.0; // STRONG boost for dedicated chapters matching topic (increased from 0.5)
+                    console.log(`[ContextBuilder] Boosted priority (+1.0) for dedicated topic chapter: ${primaryTopic}`);
                 }
             }
 
             // HIGH PRIORITY: Comprehensive coverage
             if (coverageLevel === 'comprehensive' || coverageLevel === 'advanced') {
-                priority += 0.3;
+                priority += 0.4; // Increased from 0.3
             } else if (coverageLevel === 'intermediate') {
                 priority += 0.15;
             } else if (coverageLevel === 'introduction') {
-                // Deprioritize introductions when comprehensive coverage exists
-                priority -= 0.1;
+                // STRONG deprioritization for introductions when comprehensive coverage exists
+                // Check if there are comprehensive chunks in the results
+                const hasComprehensiveChunks = chunks.some(c => {
+                    const cCoverage = c.metadata?.coverage_level || c.coverage_level;
+                    return cCoverage === 'comprehensive' || cCoverage === 'advanced';
+                });
+                if (hasComprehensiveChunks) {
+                    priority -= 0.3; // Increased deprioritization from -0.1 to -0.3
+                } else {
+                    priority -= 0.1;
+                }
             }
 
             // Boost based on completeness score
@@ -193,6 +263,12 @@ class ContextBuilderService {
                 priority += 0.4; // Strong boost for exact matches
             }
 
+            // Boost for dedicated chapter matches from topic search
+            if (chunk.isDedicatedTopicMatch === true) {
+                priority += 0.6; // Additional boost for dedicated chapters found via topic search
+                console.log(`[ContextBuilder] Additional boost (+0.6) for dedicated topic match: ${primaryTopic || chunk.chapter_title}`);
+            }
+
             return { ...chunk, priority };
         });
 
@@ -215,19 +291,70 @@ class ContextBuilderService {
 
     /**
      * Extract topic keywords from question
+     * Recognizes multi-word topics, acronyms, and technical terms
      * @param {string} question - User question
-     * @returns {Array<string>} Topic keywords
+     * @returns {Array<string>} Topic keywords and phrases
+     */
+    extractTopicKeywords(question) {
+        return this._extractTopicKeywords(question);
+    }
+
+    /**
+     * Internal method for topic extraction
+     * @private
      */
     _extractTopicKeywords(question) {
         const lowerQuestion = question.toLowerCase();
-        const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'can', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'different', 'difference', 'key', 'elements', 'examples', 'list']);
+        const commonWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'should', 'could', 'may', 'might', 'can', 'what', 'which', 'who', 'when', 'where', 'why', 'how', 'different', 'difference', 'key', 'elements', 'examples', 'list', 'case', 'success', 'about']);
         
-        // Extract significant words (length > 4, not common words)
+        const topics = [];
+        
+        // 1. Extract multi-word technical terms (2-4 words that are commonly used together)
+        const technicalPhrases = [
+            'answer engine optimization', 'aeo',
+            'search engine optimization', 'seo',
+            'technical seo', 'on-page seo', 'off-page seo',
+            'ecommerce seo', 'local seo',
+            'keyword research', 'keyword mapping',
+            'content marketing', 'link building',
+            'page experience', 'core web vitals',
+            'structured data', 'schema markup',
+            'featured snippets', 'zero-click search',
+            'search intent', 'user intent',
+            'serp features', 'serp analysis',
+            'canonical tags', 'meta tags',
+            'robots.txt', 'sitemap',
+            'internal linking', 'external linking',
+            'backlinks', 'domain authority',
+            'page speed', 'mobile optimization',
+            'voice search', 'ai search'
+        ];
+        
+        for (const phrase of technicalPhrases) {
+            if (lowerQuestion.includes(phrase)) {
+                topics.push(phrase);
+                // Also add individual significant words from the phrase
+                const phraseWords = phrase.split(/\s+/).filter(w => w.length > 3 && !commonWords.has(w));
+                topics.push(...phraseWords);
+            }
+        }
+        
+        // 2. Extract acronyms (2-5 uppercase letters, possibly with periods)
+        const acronymPattern = /\b([A-Z]{2,5}(?:\.[A-Z]{2,5})*)\b/g;
+        const acronyms = lowerQuestion.match(acronymPattern);
+        if (acronyms) {
+            topics.push(...acronyms.map(a => a.toLowerCase().replace(/\./g, '')));
+        }
+        
+        // 3. Extract significant individual words (length > 3, not common words)
         const words = lowerQuestion.split(/\s+/)
             .map(w => w.replace(/[^\w]/g, ''))
-            .filter(w => w.length > 4 && !commonWords.has(w));
+            .filter(w => w.length > 3 && !commonWords.has(w) && !topics.includes(w));
         
-        return words;
+        topics.push(...words);
+        
+        // 4. Remove duplicates and return
+        return [...new Set(topics)];
     }
 
     /**
@@ -311,56 +438,125 @@ class ContextBuilderService {
 
         console.log(`[ContextBuilder] constructContextWithinTokenLimit: ${chunks.length} chunks, maxTokens: ${maxTokens}`);
         
-        // Log sample chunk data for debugging
-        if (chunks.length > 0) {
-            const sampleChunk = chunks[0];
-            console.log(`[ContextBuilder] Sample chunk:`, {
-                id: sampleChunk.id,
-                token_count: sampleChunk.token_count,
-                content_length: sampleChunk.content?.length,
-                has_content: !!sampleChunk.content
-            });
-        }
-
+        // TWO-PHASE SELECTION: Dedicated chapters first, then others
+        // This ensures dedicated chapters are ALWAYS included if they match the topic
+        
+        // Phase 1: Separate dedicated chapters from others
+        const dedicatedChunks = [];
+        const otherChunks = [];
+        
         for (const chunk of chunks) {
-            // Calculate token count - use token_count if available, otherwise estimate
-            let chunkTokens = chunk.token_count;
+            const isDedicated = chunk.is_dedicated_topic_chapter || 
+                               chunk.metadata?.is_dedicated_topic_chapter ||
+                               chunk.isDedicatedTopicMatch === true;
             
-            // If token_count is missing, null, 0, or invalid, estimate from content
-            if (!chunkTokens || chunkTokens === 0 || isNaN(chunkTokens)) {
-                // Estimate: ~4 characters per token
-                const contentLength = chunk.content?.length || 0;
-                if (contentLength > 0) {
-                    chunkTokens = Math.ceil(contentLength / 4);
+            if (isDedicated) {
+                dedicatedChunks.push(chunk);
+            } else {
+                otherChunks.push(chunk);
+            }
+        }
+        
+        console.log(`[ContextBuilder] Separated chunks: ${dedicatedChunks.length} dedicated, ${otherChunks.length} others`);
+        
+        // Phase 2: Select dedicated chapters first (ALWAYS include if they fit)
+        const selectChunks = (chunkList, reservedTokens = 0) => {
+            const selectedFromList = [];
+            let tokensUsed = 0;
+            
+            for (const chunk of chunkList) {
+                // Calculate token count
+                let chunkTokens = chunk.token_count;
+                
+                if (!chunkTokens || chunkTokens === 0 || isNaN(chunkTokens)) {
+                    const contentLength = chunk.content?.length || 0;
+                    if (contentLength > 0) {
+                        chunkTokens = Math.ceil(contentLength / 4);
+                    } else {
+                        chunkTokens = 200;
+                    }
+                }
+                
+                if (isNaN(chunkTokens) || chunkTokens <= 0) {
+                    chunkTokens = 200;
+                }
+                
+                // Check if chunk fits (accounting for reserved tokens for other chunks)
+                const availableTokens = maxTokens - reservedTokens;
+                if (tokensUsed + chunkTokens <= availableTokens) {
+                    selectedFromList.push(chunk);
+                    tokensUsed += chunkTokens;
                 } else {
-                    // If no content either, use a reasonable default
-                    chunkTokens = 200; // Default chunk size
+                    // For dedicated chapters, try to include at least one even if it exceeds limit slightly
+                    if (selectedFromList.length === 0 && reservedTokens === 0) {
+                        selectedFromList.push(chunk);
+                        tokensUsed = chunkTokens;
+                        break;
+                    }
                 }
             }
             
-            // Ensure chunkTokens is a valid positive number
-            if (isNaN(chunkTokens) || chunkTokens <= 0) {
-                console.warn(`[ContextBuilder] Invalid token_count for chunk ${chunk.id}, using default 200`);
-                chunkTokens = 200; // Default to 200 tokens if calculation fails
+            return { selected: selectedFromList, tokensUsed };
+        };
+        
+        // First, select dedicated chapters (they get priority)
+        const dedicatedResult = selectChunks(dedicatedChunks, 0);
+        selected.push(...dedicatedResult.selected);
+        totalTokens = dedicatedResult.tokensUsed;
+        
+        console.log(`[ContextBuilder] Selected ${dedicatedResult.selected.length} dedicated chunks, ${totalTokens} tokens used`);
+        
+        // Then, select other chunks with remaining token budget
+        const remainingTokens = maxTokens - totalTokens;
+        if (remainingTokens > 0 && otherChunks.length > 0) {
+            const otherResult = selectChunks(otherChunks, 0);
+            // Only add other chunks if we have space
+            for (const chunk of otherResult.selected) {
+                let chunkTokens = chunk.token_count;
+                if (!chunkTokens || chunkTokens === 0 || isNaN(chunkTokens)) {
+                    const contentLength = chunk.content?.length || 0;
+                    chunkTokens = contentLength > 0 ? Math.ceil(contentLength / 4) : 200;
+                }
+                if (isNaN(chunkTokens) || chunkTokens <= 0) {
+                    chunkTokens = 200;
+                }
+                
+                if (totalTokens + chunkTokens <= maxTokens) {
+                    selected.push(chunk);
+                    totalTokens += chunkTokens;
+                } else {
+                    break;
+                }
             }
-
-            // Always include at least the first chunk, even if it exceeds limit
-            if (selected.length === 0) {
-                selected.push(chunk);
-                totalTokens = chunkTokens;
-                continue;
-            }
-
-            // For subsequent chunks, check if they fit
-            if (totalTokens + chunkTokens <= maxTokens) {
-                selected.push(chunk);
-                totalTokens += chunkTokens;
-            } else {
-                break;
+        }
+        
+        // If no dedicated chunks were selected but we have other chunks, fall back to normal selection
+        if (selected.length === 0 && otherChunks.length > 0) {
+            console.log('[ContextBuilder] No dedicated chunks selected, using normal selection');
+            const allChunks = [...dedicatedChunks, ...otherChunks];
+            for (const chunk of allChunks) {
+                let chunkTokens = chunk.token_count;
+                if (!chunkTokens || chunkTokens === 0 || isNaN(chunkTokens)) {
+                    const contentLength = chunk.content?.length || 0;
+                    chunkTokens = contentLength > 0 ? Math.ceil(contentLength / 4) : 200;
+                }
+                if (isNaN(chunkTokens) || chunkTokens <= 0) {
+                    chunkTokens = 200;
+                }
+                
+                if (selected.length === 0) {
+                    selected.push(chunk);
+                    totalTokens = chunkTokens;
+                } else if (totalTokens + chunkTokens <= maxTokens) {
+                    selected.push(chunk);
+                    totalTokens += chunkTokens;
+                } else {
+                    break;
+                }
             }
         }
 
-        console.log(`[ContextBuilder] Selected ${selected.length} chunks, total tokens: ${totalTokens}`);
+        console.log(`[ContextBuilder] Selected ${selected.length} chunks (${dedicatedResult.selected.length} dedicated), total tokens: ${totalTokens}`);
         
         // Very lenient fallback: if no chunks selected, return at least the first chunk
         if (selected.length === 0 && chunks.length > 0) {
