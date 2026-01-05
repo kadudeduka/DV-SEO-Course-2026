@@ -37,6 +37,20 @@ class Router {
      * @param {string} route - Route path
      */
     async navigate(route) {
+        // Prevent duplicate navigations to the same route
+        const targetHash = route.startsWith('#') ? route.slice(1) : route;
+        const currentHash = window.location.hash.slice(1) || '/';
+        
+        // Normalize both hashes for comparison
+        const normalizedTarget = targetHash.replace(/^\/+|\/+$/g, '') || '/';
+        const normalizedCurrent = currentHash.replace(/^\/+|\/+$/g, '') || '/';
+        
+        if (normalizedTarget === normalizedCurrent && this._isNavigating) {
+            console.log('[Router] Already navigating to', normalizedTarget, '- skipping duplicate navigation');
+            return;
+        }
+        
+        this._isNavigating = true;
         const normalizedRoute = route.startsWith('/') ? route : '/' + route;
         if (window.location.hash.slice(1) !== normalizedRoute) {
             window.location.hash = normalizedRoute;
@@ -49,91 +63,91 @@ class Router {
      * Handle route change
      */
     async handleRouteChange() {
-        const hash = window.location.hash.slice(1) || '/';
-        const route = this.parseRoute(hash);
+        try {
+            const hash = window.location.hash.slice(1) || '/';
+            const route = this.parseRoute(hash);
 
-        console.log('[Router] Handling route change:', hash, '→', route.path);
+            console.log('[Router] Handling route change:', hash, '→', route.path);
 
-        this.clearMessage();
+            this.clearMessage();
 
-        const guardResult = await routeGuard.checkRoute(route.path);
-        console.log('[Router] Guard result:', guardResult);
+            const guardResult = await routeGuard.checkRoute(route.path);
+            console.log('[Router] Guard result:', guardResult);
 
-        if (!guardResult.allowed) {
-            if (guardResult.redirect) {
-                console.log('[Router] Redirecting to:', guardResult.redirect);
-                await this.navigate(guardResult.redirect);
+            if (!guardResult.allowed) {
+                if (guardResult.redirect) {
+                    console.log('[Router] Redirecting to:', guardResult.redirect);
+                    await this.navigate(guardResult.redirect);
+                    if (guardResult.message) {
+                        this.showMessage(guardResult.message);
+                    }
+                    return;
+                }
+
                 if (guardResult.message) {
                     this.showMessage(guardResult.message);
                 }
                 return;
             }
 
-            if (guardResult.message) {
-                this.showMessage(guardResult.message);
+            // If parseRoute already found a handler, use it
+            let routeConfig = route.handler;
+            
+            // Otherwise, try findRoute
+            if (!routeConfig) {
+                routeConfig = this.findRoute(route.path);
             }
-            return;
-        }
-
-        // If parseRoute already found a handler, use it
-        let routeConfig = route.handler;
-        
-        // Otherwise, try findRoute
-        if (!routeConfig) {
-            routeConfig = this.findRoute(route.path);
-        }
-        
-        console.log('[Router] Route config found:', !!routeConfig, 'for path:', route.path);
-        
-        if (routeConfig) {
-            this.currentRoute = route;
-            try {
-                // Add page transition
-                const container = document.getElementById('app-container');
-                if (container) {
-                    container.classList.add('page-transition-out');
-                    await new Promise(resolve => setTimeout(resolve, 150));
-                }
-                
-                console.log('[Router] Calling route handler with route:', route);
-                console.log('[Router] Route handler function:', routeConfig);
-                await routeConfig(route);
-                console.log('[Router] Route handler executed successfully');
-                
-                // Fade in new page
-                if (container) {
-                    container.classList.remove('page-transition-out');
-                    container.classList.add('page-transition-in');
-                    setTimeout(() => {
-                        container.classList.remove('page-transition-in');
-                    }, 300);
-                }
-                
-                // Refresh header if navigating to login/register (to clear logged-in state)
-                if (route.path === '/login' || route.path === '/register') {
-                    await this.refreshHeader();
-                }
-            } catch (error) {
-                console.error('[Router] Error executing route handler:', error);
-            }
-        } else {
-            console.log('[Router] No route config found for:', route.path);
-            if (route.path === '/') {
-                const currentUser = await this.getCurrentUser();
-                if (currentUser) {
-                    // Redirect to dashboard based on role
-                    const role = currentUser.role;
-                    if (role === 'admin') {
-                        await this.navigate('/admin/dashboard');
-                    } else if (role === 'trainer') {
-                        await this.navigate('/trainer/dashboard');
-                    } else {
-                        await this.navigate('/dashboard');
+            
+            console.log('[Router] Route config found:', !!routeConfig, 'for path:', route.path);
+            
+            if (routeConfig) {
+                this.currentRoute = route;
+                try {
+                    // Add page transition
+                    const container = document.getElementById('app-container');
+                    if (container) {
+                        container.classList.add('page-transition-out');
+                        await new Promise(resolve => setTimeout(resolve, 150));
                     }
-                } else {
-                    await this.navigate('/login');
+                    
+                    console.log('[Router] Calling route handler with route:', route);
+                    console.log('[Router] Route handler function:', routeConfig);
+                    await routeConfig(route);
+                    console.log('[Router] Route handler executed successfully');
+                    
+                    // Fade in new page
+                    if (container) {
+                        container.classList.remove('page-transition-out');
+                        container.classList.add('page-transition-in');
+                        setTimeout(() => {
+                            container.classList.remove('page-transition-in');
+                        }, 300);
+                    }
+                } catch (error) {
+                    console.error('[Router] Error executing route handler:', error);
+                }
+            } else {
+                console.log('[Router] No route config found for:', route.path);
+                if (route.path === '/') {
+                    const currentUser = await this.getCurrentUser();
+                    if (currentUser) {
+                        // Redirect to dashboard based on role
+                        const role = currentUser.role;
+                        if (role === 'admin') {
+                            await this.navigate('/admin/dashboard');
+                        } else if (role === 'trainer') {
+                            await this.navigate('/trainer/dashboard');
+                        } else {
+                            await this.navigate('/dashboard');
+                        }
+                    } else {
+                        await this.navigate('/login');
+                    }
                 }
             }
+        } finally {
+            // Reset navigation flag after route change completes
+            this._isNavigating = false;
         }
     }
 

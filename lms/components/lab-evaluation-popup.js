@@ -109,6 +109,13 @@ class LabEvaluationPopup {
             console.log('[LabEvaluationPopup] Window focused, checking for evaluations');
             this.checkForNewEvaluations();
         });
+
+        // Listen for logout events to stop checking
+        window.addEventListener('user-logged-out', () => {
+            console.log('[LabEvaluationPopup] User logged out, stopping evaluation checks');
+            this.currentUser = null;
+            this.stopPolling();
+        });
     }
 
     /**
@@ -142,8 +149,26 @@ class LabEvaluationPopup {
      * Check for new evaluations
      */
     async checkForNewEvaluations() {
+        // Don't check if user is not logged in or not a learner
         if (!this.currentUser || this.currentUser.role !== 'learner') {
-            console.log('[LabEvaluationPopup] Skipping check - not a learner');
+            console.log('[LabEvaluationPopup] Skipping check - not a learner or not logged in');
+            return;
+        }
+
+        // Double-check user is still logged in (in case logout happened between checks)
+        try {
+            const { authService } = await import('../services/auth-service.js');
+            const currentUser = await authService.getCurrentUser();
+            if (!currentUser || currentUser.id !== this.currentUser.id) {
+                console.log('[LabEvaluationPopup] User logged out during check, stopping');
+                this.currentUser = null;
+                this.stopPolling();
+                return;
+            }
+        } catch (error) {
+            console.log('[LabEvaluationPopup] Error checking auth status, stopping checks');
+            this.currentUser = null;
+            this.stopPolling();
             return;
         }
 

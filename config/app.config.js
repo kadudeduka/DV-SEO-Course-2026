@@ -30,18 +30,21 @@ function getConfigValue(key) {
     }
     
     // 2. Check meta tags (for production injection)
+    // Convert key to meta tag format: SUPABASE_URL -> lms-supabase-url
     if (typeof document !== 'undefined') {
-        const metaTag = document.querySelector(`meta[name="lms-${key.toLowerCase()}"]`);
-        if (metaTag && metaTag.content) {
-            return metaTag.content;
+        const metaName = `lms-${key.toLowerCase().replace(/_/g, '-')}`;
+        const metaTag = document.querySelector(`meta[name="${metaName}"]`);
+        if (metaTag && metaTag.content && metaTag.content.trim()) {
+            return metaTag.content.trim();
         }
     }
     
     // 3. Check data attributes on <html> element
     if (typeof document !== 'undefined' && document.documentElement) {
-        const dataAttr = document.documentElement.getAttribute(`data-${key.toLowerCase().replace(/_/g, '-')}`);
-        if (dataAttr) {
-            return dataAttr;
+        const dataAttrName = `data-${key.toLowerCase().replace(/_/g, '-')}`;
+        const dataAttr = document.documentElement.getAttribute(dataAttrName);
+        if (dataAttr && dataAttr.trim()) {
+            return dataAttr.trim();
         }
     }
     
@@ -99,8 +102,21 @@ if (config.supabase.isConfigured) {
     console.warn('⚠️ LMS Backend not configured - some features will be unavailable');
     console.log('   Configuration sources checked:');
     console.log('   - window.LMS_CONFIG:', typeof window !== 'undefined' && !!window.LMS_CONFIG ? 'found' : 'not found');
-    console.log('   - Meta tags: checked');
-    console.log('   - Data attributes: checked');
-    console.log('   To configure: Create config/app.config.local.js or set via meta tags');
+    if (typeof window !== 'undefined' && window.LMS_CONFIG) {
+        console.log('     Keys in window.LMS_CONFIG:', Object.keys(window.LMS_CONFIG));
+        console.log('     SUPABASE_URL value:', window.LMS_CONFIG.SUPABASE_URL ? 'present' : 'missing');
+        console.log('     SUPABASE_ANON_KEY value:', window.LMS_CONFIG.SUPABASE_ANON_KEY ? 'present' : 'missing');
+    }
+    // Check meta tags
+    const metaUrl = typeof document !== 'undefined' ? document.querySelector('meta[name="lms-supabase-url"]') : null;
+    const metaKey = typeof document !== 'undefined' ? document.querySelector('meta[name="lms-supabase-anon-key"]') : null;
+    console.log('   - Meta tags:', (metaUrl || metaKey) ? 'found' : 'not found');
+    if (metaUrl) console.log('     lms-supabase-url:', metaUrl.content ? 'present' : 'empty');
+    if (metaKey) console.log('     lms-supabase-anon-key:', metaKey.content ? 'present' : 'empty');
+    // Check data attributes
+    const dataUrl = typeof document !== 'undefined' && document.documentElement ? document.documentElement.getAttribute('data-supabase-url') : null;
+    const dataKey = typeof document !== 'undefined' && document.documentElement ? document.documentElement.getAttribute('data-supabase-anon-key') : null;
+    console.log('   - Data attributes:', (dataUrl || dataKey) ? 'found' : 'not found');
+    console.log('   To configure: Create config/app.config.local.js with window.LMS_CONFIG = { SUPABASE_URL: "...", SUPABASE_ANON_KEY: "..." }');
 }
 

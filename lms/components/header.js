@@ -27,6 +27,12 @@ class Header {
             await this.initNotificationBadge();
             this.attachEventListeners();
             
+            // Listen for logout events to update header immediately
+            window.addEventListener('user-logged-out', () => {
+                this.currentUser = null;
+                this.render();
+            });
+            
             window.addEventListener('notification-read', () => this.refreshBadge());
             window.addEventListener('notifications-all-read', () => this.refreshBadge());
         } catch (error) {
@@ -244,7 +250,12 @@ class Header {
      * Initialize notification badge
      */
     async initNotificationBadge() {
+        // Don't initialize badge if user is not logged in
         if (!this.currentUser) {
+            const badgeContainer = this.container.querySelector('#notification-badge-container');
+            if (badgeContainer) {
+                badgeContainer.innerHTML = '';
+            }
             return;
         }
 
@@ -269,6 +280,21 @@ class Header {
      */
     async refresh() {
         try {
+            // Check if user is still logged in
+            const session = await authService.getSession();
+            if (!session || !session.profile) {
+                // No session - user is logged out
+                this.currentUser = null;
+                this.render();
+                // Clear notification badge if it exists
+                if (this.notificationBadge) {
+                    this.notificationBadge = null;
+                }
+                this.attachEventListeners();
+                return;
+            }
+            
+            // User is still logged in, get full user data
             this.currentUser = await authService.getCurrentUser();
             this.render();
             await this.initNotificationBadge();
@@ -277,6 +303,12 @@ class Header {
             // If not authenticated, clear user and render
             this.currentUser = null;
             this.render();
+            // Clear notification badge if it exists
+            if (this.notificationBadge) {
+                this.notificationBadge = null;
+            }
+            // Still attach event listeners even when not authenticated (for login button, etc.)
+            this.attachEventListeners();
         }
     }
 
@@ -498,15 +530,34 @@ class Header {
         const mobileLogoutBtn = document.getElementById('mobile-logout-btn');
         if (mobileLogoutBtn) {
             mobileLogoutBtn.addEventListener('click', async () => {
+                // Prevent multiple clicks
+                if (mobileLogoutBtn.disabled) return;
+                mobileLogoutBtn.disabled = true;
+                
                 this.closeMobileMenu();
                 try {
                     const { authService } = await import('../services/auth-service.js');
                     await authService.logout();
                     this.currentUser = null;
                     this.render();
-                    router.navigate('/login');
+                    // Navigate to login only if not already there
+                    const currentPath = window.location.hash.slice(1) || '/';
+                    if (currentPath !== '/login') {
+                        router.navigate('/login');
+                    }
                 } catch (error) {
-                    console.error('Logout failed:', error);
+                    console.warn('Logout warning (proceeding anyway):', error.message);
+                    this.currentUser = null;
+                    this.render();
+                    const currentPath = window.location.hash.slice(1) || '/';
+                    if (currentPath !== '/login') {
+                        router.navigate('/login');
+                    }
+                } finally {
+                    // Re-enable button after a delay
+                    setTimeout(() => {
+                        mobileLogoutBtn.disabled = false;
+                    }, 1000);
                 }
             });
         }
@@ -520,16 +571,38 @@ class Header {
         const logoutBtn = this.container.querySelector('#logout-btn');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async () => {
+                // Prevent multiple clicks
+                if (logoutBtn.disabled) return;
+                logoutBtn.disabled = true;
+                
                 try {
                     const { authService } = await import('../services/auth-service.js');
                     await authService.logout();
                     // Clear current user and re-render header
                     this.currentUser = null;
                     this.render();
-                    // Navigate to login
-                    router.navigate('/login');
+                    // Navigate to login only if not already there
+                    const currentPath = window.location.hash.slice(1) || '/';
+                    if (currentPath !== '/login') {
+                        router.navigate('/login');
+                    }
                 } catch (error) {
-                    console.error('Logout failed:', error);
+                    // Logout should not throw errors anymore (handles missing sessions gracefully)
+                    // But if it does, still proceed with UI cleanup
+                    console.warn('Logout warning (proceeding anyway):', error.message);
+                    // Clear current user and re-render header even if logout had issues
+                    this.currentUser = null;
+                    this.render();
+                    // Navigate to login only if not already there
+                    const currentPath = window.location.hash.slice(1) || '/';
+                    if (currentPath !== '/login') {
+                        router.navigate('/login');
+                    }
+                } finally {
+                    // Re-enable button after a delay
+                    setTimeout(() => {
+                        logoutBtn.disabled = false;
+                    }, 1000);
                 }
             });
         }

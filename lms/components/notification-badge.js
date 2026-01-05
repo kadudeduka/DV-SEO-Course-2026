@@ -39,6 +39,26 @@ class NotificationBadge {
      * Load unread notification count
      */
     async loadUnreadCount() {
+        // Don't load if user is not logged in
+        if (!this.currentUser || !this.currentUser.id) {
+            this.unreadCount = 0;
+            return;
+        }
+        
+        // Double-check user is still logged in
+        try {
+            const session = await authService.getSession();
+            if (!session || !session.profile) {
+                this.currentUser = null;
+                this.unreadCount = 0;
+                return;
+            }
+        } catch (error) {
+            this.currentUser = null;
+            this.unreadCount = 0;
+            return;
+        }
+        
         try {
             const notifications = await notificationService.getUserNotifications(this.currentUser.id);
             this.unreadCount = notifications.filter(n => !n.read).length;
@@ -99,7 +119,25 @@ class NotificationBadge {
     /**
      * Refresh the badge (update unread count)
      */
+    /**
+     * Check if user is still logged in before refreshing
+     */
+    async isUserLoggedIn() {
+        try {
+            const { authService } = await import('../services/auth-service.js');
+            const session = await authService.getSession();
+            return session && session.profile;
+        } catch (error) {
+            return false;
+        }
+    }
+
     async refresh() {
+        // Don't refresh if user is not logged in
+        if (!await this.isUserLoggedIn()) {
+            console.log('[NotificationBadge] User not logged in, skipping refresh');
+            return;
+        }
         await this.loadUnreadCount();
         this.render();
         this.attachEventListeners();

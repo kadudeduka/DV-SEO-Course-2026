@@ -118,6 +118,36 @@ class RouteGuard {
      */
     async checkRoute(route) {
         try {
+            // Check session first (source of truth) - this is what matters for authentication
+            const session = await authService.getSession();
+            
+            // If no session, user is logged out
+            if (!session || !session.profile) {
+                // Check if localStorage was cleared (fast-path check for logout)
+                const storedUser = localStorage.getItem('lms_user');
+                if (!storedUser) {
+                    // Definitely logged out - allow public routes only
+                    if (this.isProtectedRoute(route) || this.isTrainerRoute(route) || this.isCourseRoute(route) || this.isAdminRoute(route)) {
+                        return {
+                            allowed: false,
+                            redirect: '/login',
+                            message: 'Please login to access this page'
+                        };
+                    }
+                    return { allowed: true };
+                }
+                // Session expired but localStorage still has data - treat as logged out
+                if (this.isProtectedRoute(route) || this.isTrainerRoute(route) || this.isCourseRoute(route) || this.isAdminRoute(route)) {
+                    return {
+                        allowed: false,
+                        redirect: '/login',
+                        message: 'Please login to access this page'
+                    };
+                }
+                return { allowed: true };
+            }
+
+            // Session exists - user is authenticated, get full user data
             const currentUser = await authService.getCurrentUser();
 
             if (!currentUser) {
