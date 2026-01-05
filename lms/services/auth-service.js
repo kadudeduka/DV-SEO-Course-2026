@@ -213,46 +213,61 @@ class AuthService {
      * Logout user
      * Signs out from Supabase and clears local session data
      * Handles cases where session is already expired or missing
-     * @returns {Promise<boolean>} Success status
+     * NEVER THROWS ERRORS - always succeeds in clearing local state
+     * @returns {Promise<boolean>} Success status (always true)
      */
     async logout() {
         // Prevent multiple simultaneous logout calls
         if (this._isLoggingOut) {
             console.log('[AuthService] Logout already in progress, skipping...');
-            return false;
+            return true; // Return true to indicate cleanup will happen
         }
         
         this._isLoggingOut = true;
         
         try {
             // Check if there's an active session before attempting signOut
-            const { data: sessionData } = await this.client.auth.getSession();
+            let sessionData = null;
+            try {
+                const sessionResult = await this.client.auth.getSession();
+                sessionData = sessionResult?.data;
+            } catch (sessionError) {
+                // Session check failed - treat as no session (user already logged out)
+                console.log('[AuthService] Session check failed, proceeding with cleanup:', sessionError.message);
+            }
             
             // Only attempt signOut if there's an active session
             if (sessionData?.session) {
-                const { error } = await this.client.auth.signOut();
-                
-                if (error) {
-                    // If error is about missing session, treat as successful logout
-                    // (user is already logged out)
-                    const isSessionMissingError = 
-                        error.message?.toLowerCase().includes('session missing') ||
-                        error.message?.toLowerCase().includes('auth session missing') ||
-                        error.status === 403;
+                try {
+                    const { error } = await this.client.auth.signOut();
                     
-                    if (!isSessionMissingError) {
-                        console.warn('[AuthService] Logout error (non-critical):', error.message);
+                    if (error) {
+                        // If error is about missing session or 403, treat as successful logout
+                        // (user is already logged out)
+                        const isSessionMissingError = 
+                            error.message?.toLowerCase().includes('session missing') ||
+                            error.message?.toLowerCase().includes('auth session missing') ||
+                            error.status === 403 ||
+                            error.statusCode === 403;
+                        
+                        if (isSessionMissingError) {
+                            console.log('[AuthService] Session already cleared (403/missing), proceeding with cleanup');
+                        } else {
+                            console.warn('[AuthService] Logout error (non-critical):', error.message);
+                        }
                         // Continue with cleanup even if signOut failed
                     }
+                } catch (signOutError) {
+                    // signOut itself threw an error - still proceed with cleanup
+                    console.warn('[AuthService] SignOut error (proceeding with cleanup):', signOutError.message);
                 }
             } else {
                 // No active session - user is already logged out
                 console.log('[AuthService] No active session found, proceeding with local cleanup');
             }
         } catch (error) {
-            // If getSession fails or signOut fails with unexpected error,
-            // still proceed with local cleanup
-            console.warn('[AuthService] Error during logout (proceeding with cleanup):', error.message);
+            // Catch any unexpected errors - still proceed with cleanup
+            console.warn('[AuthService] Unexpected error during logout (proceeding with cleanup):', error.message);
         } finally {
             // Always clear local storage and cache, regardless of signOut result
             localStorage.removeItem('lms_user');
