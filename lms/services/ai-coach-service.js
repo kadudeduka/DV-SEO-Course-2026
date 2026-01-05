@@ -197,33 +197,41 @@ class AICoachService {
             }
             
             // STEP 3: Merge dedicated chapters with regular search results
-            // Deduplicate by chunk ID, keeping dedicated chapters if they appear in both
-            const chunkMap = new Map();
-            
-            // Add regular search results first
-            similarChunks.forEach(chunk => {
-                chunkMap.set(chunk.id, chunk);
-            });
-            
-            // Add dedicated chapters (they override regular results if duplicate)
-            dedicatedChunks.forEach(chunk => {
-                const existing = chunkMap.get(chunk.id);
-                if (existing) {
-                    // Merge: keep dedicated chapter properties but preserve higher similarity if exists
-                    chunkMap.set(chunk.id, {
-                        ...existing,
-                        ...chunk,
-                        similarity: Math.max(existing.similarity || 0, chunk.similarity || 0.9),
-                        isDedicatedTopicMatch: true
+            // CRITICAL: Dedicated chapters should ALWAYS be prioritized and included first
+            if (dedicatedChunks.length > 0) {
+                console.log('[AICoachService] Merging dedicated chapters with search results...');
+                console.log(`[AICoachService] Dedicated chunks found: ${dedicatedChunks.length}, Regular chunks: ${similarChunks.length}`);
+                
+                // Use a Map to deduplicate by chunk ID
+                const chunkMap = new Map();
+                
+                // FIRST: Add dedicated chunks with high priority markers
+                dedicatedChunks.forEach(chunk => {
+                    // Mark as dedicated and set high similarity to ensure prioritization
+                    chunkMap.set(chunk.id, { 
+                        ...chunk, 
+                        isDedicatedTopicMatch: true,
+                        similarity: Math.max(chunk.similarity || 0, 0.95), // Ensure high similarity
+                        priority: 2.0 // Set minimum priority
                     });
-                } else {
-                    chunkMap.set(chunk.id, chunk);
-                }
-            });
-            
-            // Convert back to array
-            similarChunks = Array.from(chunkMap.values());
-            console.log(`[AICoachService] After merging dedicated chapters: ${similarChunks.length} total chunks`);
+                });
+                
+                // SECOND: Add regular search results (they won't overwrite dedicated chunks)
+                similarChunks.forEach(chunk => {
+                    if (!chunkMap.has(chunk.id)) {
+                        chunkMap.set(chunk.id, chunk);
+                    }
+                });
+                
+                // Convert back to array, but put dedicated chunks FIRST
+                const allChunks = Array.from(chunkMap.values());
+                const dedicated = allChunks.filter(c => c.isDedicatedTopicMatch === true);
+                const others = allChunks.filter(c => c.isDedicatedTopicMatch !== true);
+                
+                // Dedicated chunks first, then others
+                similarChunks = [...dedicated, ...others];
+                console.log(`[AICoachService] After merging: ${dedicated.length} dedicated chunks, ${others.length} regular chunks`);
+            }
             
             // Fallback: If no results, try keyword-only search
             if (similarChunks.length === 0) {

@@ -196,6 +196,20 @@ Respond with ONLY the category name.`
     _classifyIntentFallback(question) {
         const lowerQuestion = question.toLowerCase();
         
+        // SEO/AEO topic keywords - if present, classify as course_content (not out_of_scope)
+        const seoTopicKeywords = [
+            'seo', 'aeo', 'answer engine', 'search engine', 'serp', 'keyword', 
+            'optimization', 'ranking', 'content', 'link', 'backlink', 
+            'technical seo', 'on-page', 'off-page', 'ecommerce seo',
+            'local seo', 'mobile seo', 'voice search', 'featured snippet',
+            'schema', 'structured data', 'canonical', 'robots.txt', 'sitemap',
+            'crawl', 'index', 'meta tag', 'heading', 'anchor', 'internal link',
+            'external link', 'domain authority', 'page authority', 'core web vitals'
+        ];
+        
+        // Check if question contains SEO/AEO topics
+        const hasSEOTopic = seoTopicKeywords.some(keyword => lowerQuestion.includes(keyword));
+        
         // List request indicators
         const listKeywords = ['list', 'enumerate', 'show all', 'what are all', 'list all', 'list the', 'list examples'];
         if (listKeywords.some(keyword => lowerQuestion.includes(keyword))) {
@@ -203,7 +217,7 @@ Respond with ONLY the category name.`
         }
         
         // Lab struggle indicators
-        const struggleKeywords = ['stuck', 'help', "don't understand", "can't", 'how to do', 'what should i do'];
+        const struggleKeywords = ['stuck', 'help', "don't understand", "can't", 'what should i do'];
         if (struggleKeywords.some(keyword => lowerQuestion.includes(keyword))) {
             if (lowerQuestion.includes('lab') || lowerQuestion.includes('assignment')) {
                 return 'lab_struggle';
@@ -213,6 +227,16 @@ Respond with ONLY the category name.`
         // Lab guidance
         if (lowerQuestion.includes('lab') || lowerQuestion.includes('assignment') || lowerQuestion.includes('exercise')) {
             return 'lab_guidance';
+        }
+        
+        // "How to" questions about SEO/AEO topics should be course_content
+        if ((lowerQuestion.includes('how to') || lowerQuestion.includes('how do')) && hasSEOTopic) {
+            return 'course_content';
+        }
+        
+        // If question contains SEO/AEO topics, default to course_content (not out_of_scope)
+        if (hasSEOTopic) {
+            return 'course_content';
         }
         
         // Navigation

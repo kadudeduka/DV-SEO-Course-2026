@@ -131,24 +131,41 @@ class ContextBuilderService {
             // CRITICAL: Dedicated chapters that match topic get minimum priority of 2.0
             // This ensures they ALWAYS rank above non-dedicated chapters regardless of similarity
             const isDedicatedMatch = chunk.isDedicatedTopicMatch === true || 
-                                     (chunk.is_dedicated_topic_chapter && chunk.primary_topic);
-            if (isDedicatedMatch) {
+                                     (chunk.is_dedicated_topic_chapter && chunk.primary_topic) ||
+                                     chunk.is_dedicated_topic_chapter === true;
+            
+            // Also check chapter title for topic matches (for chunks without metadata)
+            const chapterTitle = (chunk.chapter_title || '').toLowerCase();
+            const hasTopicInTitle = questionTopics.some(qt => {
+                const qtLower = qt.toLowerCase();
+                return chapterTitle.includes(qtLower) || qtLower.includes(chapterTitle);
+            });
+            
+            if (isDedicatedMatch || hasTopicInTitle) {
                 // Check if it matches the question topic
-                const primaryTopic = chunk.primary_topic || chunk.metadata?.primary_topic || '';
+                const primaryTopic = chunk.primary_topic || chunk.metadata?.primary_topic || chunk.chapter_title || '';
                 if (primaryTopic) {
                     const topicMatch = questionTopics.some(qt => {
                         const qtLower = qt.toLowerCase();
                         const ptLower = primaryTopic.toLowerCase();
+                        // More flexible matching
                         return ptLower.includes(qtLower) || qtLower.includes(ptLower) ||
                                primaryTopic.toLowerCase().split(/\s+/).some(pw => 
                                    questionTopics.some(qt2 => qt2.includes(pw) || pw.includes(qt2))
-                               );
+                               ) ||
+                               // Check if all words from topic appear in primary topic
+                               (qtLower.split(/\s+/).length >= 2 && 
+                                qtLower.split(/\s+/).every(word => ptLower.includes(word)));
                     });
-                    if (topicMatch) {
+                    if (topicMatch || hasTopicInTitle) {
                         // Set minimum priority to ensure dedicated chapters always win
                         priority = Math.max(priority, 2.0);
-                        console.log(`[ContextBuilder] Dedicated chapter priority floor set to 2.0: ${primaryTopic}`);
+                        console.log(`[ContextBuilder] Dedicated chapter priority floor set to 2.0: ${primaryTopic || chapterTitle}`);
                     }
+                } else if (hasTopicInTitle) {
+                    // Even without primary_topic, if title matches, boost it
+                    priority = Math.max(priority, 2.0);
+                    console.log(`[ContextBuilder] Chapter title matches topic, priority floor set to 2.0: ${chapterTitle}`);
                 }
             }
 
@@ -310,10 +327,12 @@ class ContextBuilderService {
         const topics = [];
         
         // 1. Extract multi-word technical terms (2-4 words that are commonly used together)
+        // IMPORTANT: Order matters - longer phrases first to avoid partial matches
         const technicalPhrases = [
             'answer engine optimization', 'aeo',
             'search engine optimization', 'seo',
-            'technical seo', 'on-page seo', 'off-page seo',
+            'technical seo', 'technical search engine optimization', // Add both variations
+            'on-page seo', 'off-page seo',
             'ecommerce seo', 'local seo',
             'keyword research', 'keyword mapping',
             'content marketing', 'link building',

@@ -692,11 +692,14 @@ class RetrievalService {
                 
                 // Fallback: Search by chapter title/content containing topic keywords
                 // This helps when metadata isn't set but chapter is clearly about the topic
+                // Use ALL topic keywords, not just top 3, to maximize chances of finding the chapter
                 const topicSearchTerms = topicKeywords
-                    .filter(tk => tk.length > 3) // Only use substantial keywords
-                    .slice(0, 3); // Limit to top 3 keywords
+                    .filter(tk => tk.length > 2) // Lower threshold to 2 to catch "seo", "aeo", etc.
+                    .slice(0, 5); // Increased from 3 to 5 to catch more variations
                 
                 if (topicSearchTerms.length > 0) {
+                    console.log(`[RetrievalService] Fallback search using terms: ${topicSearchTerms.join(', ')}`);
+                    
                     let fallbackQuery = supabaseClient
                         .from('ai_coach_content_chunks')
                         .select('*')
@@ -704,14 +707,30 @@ class RetrievalService {
                         .eq('content_type', 'chapter'); // Only chapters
                     
                     // Search in chapter_title and content for topic keywords
-                    const searchPatterns = topicSearchTerms.map(term => 
-                        `chapter_title.ilike.%${term}%,content.ilike.%${term}%`
-                    );
-                    fallbackQuery = fallbackQuery.or(searchPatterns.join(','));
+                    // Use more flexible matching: search for each term individually and combine
+                    // Also search for multi-word phrases as complete phrases
+                    const searchPatterns = [];
                     
-                    // Get chunks from later days (Day 10+) as dedicated chapters are usually later
-                    // This helps find Chapter 20 which has AEO strategies
-                    fallbackQuery = fallbackQuery.gte('day', 10);
+                    // First, try exact phrase matches (e.g., "technical seo" as a phrase)
+                    const multiWordTopics = topicKeywords.filter(tk => tk.split(/\s+/).length >= 2);
+                    multiWordTopics.forEach(phrase => {
+                        searchPatterns.push(`chapter_title.ilike.%${phrase}%`);
+                        searchPatterns.push(`content.ilike.%${phrase}%`);
+                    });
+                    
+                    // Then, try individual word matches
+                    topicSearchTerms.forEach(term => {
+                        searchPatterns.push(`chapter_title.ilike.%${term}%`);
+                        searchPatterns.push(`content.ilike.%${term}%`);
+                    });
+                    
+                    if (searchPatterns.length > 0) {
+                        fallbackQuery = fallbackQuery.or(searchPatterns.join(','));
+                    }
+                    
+                    // Don't filter by day - dedicated chapters can be anywhere in the course
+                    // Some topics like Technical SEO might be covered in earlier days
+                    // We'll rely on title/content matching to find the right chapter
                     
                     if (filters.contentType) {
                         fallbackQuery = fallbackQuery.eq('content_type', filters.contentType);
@@ -785,11 +804,24 @@ class RetrievalService {
                         return true;
                     }
                     
-                    // Check if topic words appear in chapter title
-                    const topicWords = topicLower.split(/\s+/).filter(w => w.length > 3);
-                    if (topicWords.length >= 2) {
+                    // Check if topic words appear in chapter title (flexible matching)
+                    const topicWords = topicLower.split(/\s+/).filter(w => w.length > 2); // Lower threshold to 2
+                    if (topicWords.length >= 1) { // Changed from 2 to 1
                         const wordsInTitle = topicWords.filter(tw => chapterTitle.includes(tw));
-                        if (wordsInTitle.length >= Math.min(2, topicWords.length)) {
+                        // If at least one significant word matches, consider it a match
+                        // This helps match "technical seo" with chapters titled "Technical SEO"
+                        if (wordsInTitle.length >= 1) {
+                            return true;
+                        }
+                    }
+                    
+                    // Additional check: if topic is a multi-word phrase, check if all words appear
+                    // This helps match "technical seo" even if chapter title has different word order
+                    if (topicWords.length >= 2) {
+                        const allWordsMatch = topicWords.every(tw => 
+                            chapterTitle.includes(tw) || content.includes(tw)
+                        );
+                        if (allWordsMatch) {
                             return true;
                         }
                     }
