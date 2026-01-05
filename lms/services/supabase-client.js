@@ -29,12 +29,30 @@ function getConfig() {
  * @returns {string} Supabase project URL
  */
 function getSupabaseUrl() {
-    const config = getConfig();
-    const url = config.supabase?.url;
-    if (!url) {
-        throw new Error('SUPABASE_URL is not configured. Please set it in config/app.config.local.js');
+    try {
+        const config = getConfig();
+        const url = config.supabase?.url;
+        if (!url) {
+            console.error('SUPABASE_URL is not configured.');
+            console.error('Configuration sources checked:');
+            console.error('  - window.LMS_CONFIG:', typeof window !== 'undefined' && !!window.LMS_CONFIG ? 'found' : 'not found');
+            console.error('  - Meta tags: checked');
+            console.error('  - Data attributes: checked');
+            console.error('Please set SUPABASE_URL in one of these ways:');
+            console.error('  1. Create config/app.config.local.js with window.LMS_CONFIG');
+            console.error('  2. Set meta tag: <meta name="lms-supabase_url" content="...">');
+            console.error('  3. Set data attribute: <html data-supabase-url="...">');
+            throw new Error('SUPABASE_URL is not configured. See console for details.');
+        }
+        return url;
+    } catch (error) {
+        if (error.message.includes('Configuration not loaded')) {
+            // Config system not initialized yet - provide helpful error
+            console.error('Configuration system not initialized. Ensure config/app.config.js is loaded before this module.');
+            throw new Error('Configuration not loaded. Ensure config/app.config.js is loaded in index.html before supabase-client.js');
+        }
+        throw error;
     }
-    return url;
 }
 
 /**
@@ -42,12 +60,25 @@ function getSupabaseUrl() {
  * @returns {string} Supabase anon key
  */
 function getSupabaseAnonKey() {
-    const config = getConfig();
-    const key = config.supabase?.anonKey;
-    if (!key) {
-        throw new Error('SUPABASE_ANON_KEY is not configured. Please set it in config/app.config.local.js');
+    try {
+        const config = getConfig();
+        const key = config.supabase?.anonKey;
+        if (!key) {
+            console.error('SUPABASE_ANON_KEY is not configured.');
+            console.error('Please set SUPABASE_ANON_KEY in one of these ways:');
+            console.error('  1. Create config/app.config.local.js with window.LMS_CONFIG');
+            console.error('  2. Set meta tag: <meta name="lms-supabase_anon_key" content="...">');
+            console.error('  3. Set data attribute: <html data-supabase-anon-key="...">');
+            throw new Error('SUPABASE_ANON_KEY is not configured. See console for details.');
+        }
+        return key;
+    } catch (error) {
+        if (error.message.includes('Configuration not loaded')) {
+            console.error('Configuration system not initialized. Ensure config/app.config.js is loaded before this module.');
+            throw new Error('Configuration not loaded. Ensure config/app.config.js is loaded in index.html before supabase-client.js');
+        }
+        throw error;
     }
-    return key;
 }
 
 /**
@@ -81,6 +112,35 @@ export function getSupabaseClient() {
 /**
  * Default export: Singleton Supabase client instance
  * This is the primary way to access the Supabase client
+ * 
+ * Note: If config is not loaded when this module is imported,
+ * the client creation will be deferred until first access via getSupabaseClient()
  */
-export const supabaseClient = getSupabaseClient();
+let _defaultClient = null;
+
+// Lazy initialization for default export
+// This allows the module to be imported even if config isn't ready yet
+export const supabaseClient = new Proxy({}, {
+    get(target, prop) {
+        // Lazy initialization - only create client when first accessed
+        if (!_defaultClient) {
+            try {
+                _defaultClient = getSupabaseClient();
+            } catch (error) {
+                // If initialization fails, throw a helpful error
+                console.error('[SupabaseClient] Failed to initialize:', error.message);
+                throw new Error(
+                    'Supabase client not initialized. ' +
+                    'Configuration is missing. ' +
+                    'Please ensure:\n' +
+                    '1. config/app.config.js is loaded in index.html\n' +
+                    '2. config/app.config.local.js exists (or meta tags/data attributes are set)\n' +
+                    '3. SUPABASE_URL and SUPABASE_ANON_KEY are configured\n\n' +
+                    'Original error: ' + error.message
+                );
+            }
+        }
+        return _defaultClient[prop];
+    }
+});
 

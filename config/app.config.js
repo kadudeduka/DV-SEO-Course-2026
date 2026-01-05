@@ -3,35 +3,74 @@
  * 
  * This file contains configuration for the LMS, including backend API credentials.
  * 
- * Configuration is loaded from:
- * 1. window.LMS_CONFIG (set in config.local.js - gitignored)
- * 2. Environment variables (if using build tools)
+ * Configuration is loaded from (in order of priority):
+ * 1. window.LMS_CONFIG (set in config/app.config.local.js - gitignored, generated in production)
+ * 2. Meta tags (for production environments where env vars are injected)
+ * 3. Data attributes on <html> element
+ * 4. Environment variables (if using build tools)
  * 
  * For local development:
- * - Create lms/config.local.js with your Supabase credentials
+ * - Create config/app.config.local.js with your Supabase credentials
  * - See BACKEND_SETUP.md for instructions
  * 
  * For GitHub Pages:
- * - These values should be injected at build time from GitHub Secrets
- * - Or use a separate config file that's not committed
+ * - GitHub Actions generates config/app.config.local.js from secrets
+ * - If that fails, can use meta tags or data attributes
  */
 
-// Supabase Configuration
-// These will be populated from window.LMS_CONFIG or environment variables
-const SUPABASE_URL = (typeof window !== 'undefined' && window.LMS_CONFIG?.SUPABASE_URL) || 
-                     (typeof process !== 'undefined' && process.env?.SUPABASE_URL) || 
-                     '';
+/**
+ * Get configuration value from multiple sources
+ * @param {string} key - Configuration key
+ * @returns {string|null} Configuration value
+ */
+function getConfigValue(key) {
+    // 1. Check window.LMS_CONFIG (from config file)
+    if (typeof window !== 'undefined' && window.LMS_CONFIG?.[key]) {
+        return window.LMS_CONFIG[key];
+    }
+    
+    // 2. Check meta tags (for production injection)
+    if (typeof document !== 'undefined') {
+        const metaTag = document.querySelector(`meta[name="lms-${key.toLowerCase()}"]`);
+        if (metaTag && metaTag.content) {
+            return metaTag.content;
+        }
+    }
+    
+    // 3. Check data attributes on <html> element
+    if (typeof document !== 'undefined' && document.documentElement) {
+        const dataAttr = document.documentElement.getAttribute(`data-${key.toLowerCase().replace(/_/g, '-')}`);
+        if (dataAttr) {
+            return dataAttr;
+        }
+    }
+    
+    // 4. Check environment variables (Node.js/build time)
+    if (typeof process !== 'undefined' && process.env?.[key]) {
+        return process.env[key];
+    }
+    
+    return null;
+}
 
-const SUPABASE_ANON_KEY = (typeof window !== 'undefined' && window.LMS_CONFIG?.SUPABASE_ANON_KEY) || 
-                          (typeof process !== 'undefined' && process.env?.SUPABASE_ANON_KEY) || 
-                          '';
+// Supabase Configuration
+// Load from multiple sources with fallback
+const SUPABASE_URL = getConfigValue('SUPABASE_URL') || '';
+const SUPABASE_ANON_KEY = getConfigValue('SUPABASE_ANON_KEY') || '';
+const SUPABASE_SERVICE_KEY = getConfigValue('SUPABASE_SERVICE_KEY') || '';
+const OPENAI_API_KEY = getConfigValue('OPENAI_API_KEY') || '';
 
 // Configuration object
 const config = {
     supabase: {
         url: SUPABASE_URL,
         anonKey: SUPABASE_ANON_KEY,
+        serviceKey: SUPABASE_SERVICE_KEY,
         isConfigured: !!(SUPABASE_URL && SUPABASE_ANON_KEY)
+    },
+    openai: {
+        apiKey: OPENAI_API_KEY,
+        isConfigured: !!OPENAI_API_KEY
     },
     // Feature flags
     features: {
@@ -54,8 +93,14 @@ if (typeof window !== 'undefined') {
 // Log configuration status (helpful for debugging)
 if (config.supabase.isConfigured) {
     console.log('✅ LMS Backend configured');
+    console.log('   Supabase URL:', config.supabase.url ? '✓' : '✗');
+    console.log('   Supabase Key:', config.supabase.anonKey ? '✓' : '✗');
 } else {
-    console.log('ℹ️ LMS Backend not configured - using localStorage only');
-    console.log('   Create lms/config.local.js to enable backend features');
+    console.warn('⚠️ LMS Backend not configured - some features will be unavailable');
+    console.log('   Configuration sources checked:');
+    console.log('   - window.LMS_CONFIG:', typeof window !== 'undefined' && !!window.LMS_CONFIG ? 'found' : 'not found');
+    console.log('   - Meta tags: checked');
+    console.log('   - Data attributes: checked');
+    console.log('   To configure: Create config/app.config.local.js or set via meta tags');
 }
 

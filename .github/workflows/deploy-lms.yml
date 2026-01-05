@@ -33,6 +33,10 @@ jobs:
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
+          # Ensure config directory exists
+          mkdir -p config
+          
+          # Generate config file (using unquoted EOF to allow variable expansion)
           cat > config/app.config.local.js << EOF
           /**
            * LMS Backend Configuration
@@ -51,6 +55,19 @@ jobs:
               OPENAI_API_KEY: '${OPENAI_API_KEY}'
           };
           EOF
+          
+          # Verify file was created and has content
+          if [ -f "config/app.config.local.js" ]; then
+            FILE_SIZE=$(wc -c < config/app.config.local.js)
+            if [ "$FILE_SIZE" -gt 100 ]; then
+              echo "✅ Config file created successfully ($FILE_SIZE bytes)"
+            else
+              echo "⚠️ Warning: Config file is very small ($FILE_SIZE bytes) - may be missing values"
+            fi
+          else
+            echo "❌ Error: Config file was not created!"
+            exit 1
+          fi
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
