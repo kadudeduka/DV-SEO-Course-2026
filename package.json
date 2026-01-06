@@ -6,16 +6,20 @@
   "scripts": {
     "index-course": "node lms/scripts/index-course-content-node.js",
     "generate-config": "node scripts/generate-config.js",
-    "setup": "npm run generate-config"
+    "setup": "npm run generate-config",
+    "watch-content": "node lms/scripts/watch-content-changes.js --watch",
+    "ingest-content": "node lms/scripts/watch-content-changes.js --once",
+    "ingest-content:dry-run": "node lms/scripts/watch-content-changes.js --once --dry-run",
+    "test": "node tests/governance-rules.test.js && node tests/system-owned-references.test.js",
+    "test:governance": "node tests/governance-rules.test.js",
+    "test:references": "node tests/system-owned-references.test.js"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0",
-    "openai": "^4.20.0",
-    "dotenv": "^16.3.1"
+    "@supabase/supabase-js": "^2.89.0",
+    "dotenv": "^16.6.1",
+    "openai": "^4.104.0"
   },
-  "devDependencies": {},
   "engines": {
     "node": ">=18.0.0"
   }
 }
-

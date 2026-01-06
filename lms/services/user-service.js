@@ -9,39 +9,91 @@ import { supabaseClient } from './supabase-client.js';
 class UserService {
     constructor(client) {
         this.client = client;
+        // Cache user profiles to avoid repeated database calls
+        this.cache = new Map();
+        this.cacheTimeout = 5 * 60 * 1000; // 5 minutes cache
+        this.pendingRequests = new Map(); // Track pending requests to avoid duplicate calls
     }
 
     /**
-     * Get user profile by user ID
+     * Get user profile by user ID (with caching)
      * @param {string} userId - User UUID
+     * @param {boolean} forceRefresh - Force refresh from database (bypass cache)
      * @returns {Promise<object>} User profile
      */
-    async getUserProfile(userId) {
+    async getUserProfile(userId, forceRefresh = false) {
         if (!userId) {
             throw new Error('User ID is required');
         }
 
-        console.log('[UserService] Getting user profile for ID:', userId);
-
-        // Use maybeSingle() to handle cases where user might not exist
-        const { data, error } = await this.client
-            .from('users')
-            .select('*')
-            .eq('id', userId)
-            .maybeSingle();
-
-        if (error) {
-            console.error('[UserService] Error fetching user profile:', error);
-            throw new Error('Failed to get user profile: ' + error.message);
+        // Check cache first (unless force refresh)
+        if (!forceRefresh) {
+            const cached = this.cache.get(userId);
+            if (cached && (Date.now() - cached.timestamp) < this.cacheTimeout) {
+                console.log('[UserService] Returning cached user profile for ID:', userId);
+                return cached.data;
+            }
         }
 
-        if (!data) {
-            console.warn('[UserService] User profile not found for ID:', userId);
-            throw new Error('User profile not found. Please contact support.');
+        // Check if there's already a pending request for this user
+        if (this.pendingRequests.has(userId)) {
+            console.log('[UserService] Waiting for pending request for ID:', userId);
+            return await this.pendingRequests.get(userId);
         }
 
-        console.log('[UserService] User profile found:', { id: data.id, email: data.email, role: data.role, status: data.status });
-        return data;
+        // Create new request
+        const requestPromise = (async () => {
+            try {
+                console.log('[UserService] Fetching user profile from database for ID:', userId);
+
+                // Use maybeSingle() to handle cases where user might not exist
+                const { data, error } = await this.client
+                    .from('users')
+                    .select('*')
+                    .eq('id', userId)
+                    .maybeSingle();
+
+                if (error) {
+                    console.error('[UserService] Error fetching user profile:', error);
+                    throw new Error('Failed to get user profile: ' + error.message);
+                }
+
+                if (!data) {
+                    console.warn('[UserService] User profile not found for ID:', userId);
+                    throw new Error('User profile not found. Please contact support.');
+                }
+
+                // Cache the result
+                this.cache.set(userId, {
+                    data,
+                    timestamp: Date.now()
+                });
+
+                console.log('[UserService] User profile found:', { id: data.id, email: data.email, role: data.role, status: data.status });
+                return data;
+            } finally {
+                // Remove from pending requests
+                this.pendingRequests.delete(userId);
+            }
+        })();
+
+        // Store pending request
+        this.pendingRequests.set(userId, requestPromise);
+
+        return await requestPromise;
+    }
+
+    /**
+     * Clear cache for a specific user (call after profile updates)
+     * @param {string} userId - User UUID
+     */
+    clearCache(userId) {
+        if (userId) {
+            this.cache.delete(userId);
+        } else {
+            // Clear all cache
+            this.cache.clear();
+        }
     }
 
     /**
@@ -144,6 +196,10 @@ class UserService {
         }
 
         console.log('[UserService] User profile created/updated successfully:', { id: data.id, name: data.name, email: data.email });
+        
+        // Clear cache after create/update
+        this.clearCache(profileData.id);
+        
         return data;
     }
 
@@ -182,6 +238,9 @@ class UserService {
         if (error) {
             throw new Error('Failed to update user profile: ' + error.message);
         }
+
+        // Clear cache after update
+        this.clearCache(userId);
 
         return data;
     }

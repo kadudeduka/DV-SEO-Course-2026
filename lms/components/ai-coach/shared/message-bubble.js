@@ -45,9 +45,42 @@ class MessageBubble {
 
         // References (for AI messages)
         if ((type === 'ai' || type === 'trainer') && message.references && message.references.length > 0) {
-            const referencesEl = ReferenceLink.renderMultiple(message.references, { courseId });
-            referencesEl.className = 'message-references';
-            container.appendChild(referencesEl);
+            // Separate primary and secondary references
+            const primaryRefs = message.references.filter(r => r.is_primary === true);
+            const secondaryRefs = message.references.filter(r => r.is_primary !== true);
+            
+            // Render primary references first with indicator
+            if (primaryRefs.length > 0) {
+                const primaryRefsEl = document.createElement('div');
+                primaryRefsEl.className = 'message-references message-references-primary';
+                primaryRefs.forEach(ref => {
+                    const refEl = ReferenceLink.render(ref, { courseId });
+                    // Add primary indicator
+                    const primaryBadge = document.createElement('span');
+                    primaryBadge.className = 'reference-primary-badge';
+                    primaryBadge.textContent = 'Primary';
+                    primaryBadge.setAttribute('aria-label', 'Primary reference');
+                    refEl.insertBefore(primaryBadge, refEl.firstChild);
+                    primaryRefsEl.appendChild(refEl);
+                });
+                container.appendChild(primaryRefsEl);
+            }
+            
+            // Render secondary references
+            if (secondaryRefs.length > 0) {
+                const secondaryRefsEl = ReferenceLink.renderMultiple(secondaryRefs, { courseId });
+                secondaryRefsEl.className = 'message-references message-references-secondary';
+                container.appendChild(secondaryRefsEl);
+            }
+            
+            // Show disclaimer if required
+            const refWithDisclaimer = message.references.find(r => r.requires_disclaimer === true);
+            if (refWithDisclaimer && refWithDisclaimer.disclaimer) {
+                const disclaimerEl = document.createElement('div');
+                disclaimerEl.className = 'reference-disclaimer';
+                disclaimerEl.innerHTML = `⚠️ <em>${refWithDisclaimer.disclaimer}</em>`;
+                container.appendChild(disclaimerEl);
+            }
         }
 
         // Confidence indicator (for AI messages with low confidence)

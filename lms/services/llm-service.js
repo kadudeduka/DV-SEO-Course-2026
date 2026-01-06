@@ -309,20 +309,21 @@ Respond with ONLY the category name.`
 - Be COMPLETE: Answer fully, don't leave gaps - expand on course content when needed
 - Be RELEVANT: Focus on what was asked, exclude unrelated details
 - Optimal length: 50-300 words (adjust based on question complexity - comprehensive questions may need more)
-- Structure: Direct Answer → Key Points (point-based) → References → Next Steps (if relevant)
+- Structure: Direct Answer → Key Points (point-based) → Next Steps (if relevant)
 - Use bullet points for lists and structured formatting
 - Avoid filler words and repetition
 - For "how-to" questions: Provide concise, point-based steps highlighting key actions
 - For "list" requests: Extract and enumerate ALL items from the specified chapter (not just a summary)
 - Exclude lab assignment logistics (documentation, submission templates, assignment steps) unless explicitly asked
 - Distinguish between conceptual questions (explain concept) and lab questions (provide lab guidance)
-- When a specific chapter is mentioned, extract content ONLY from that chapter and ensure references match`;
+- When a specific chapter is mentioned, extract content ONLY from that chapter
+- CRITICAL REFERENCE RULE: Do NOT include any chapter, day, or lab references in your answer (e.g., "Day X → Chapter Y", "Chapter X", "Lab Y"). The system will automatically add references based on the content you use.`;
 
         const messages = [
             { role: 'system', content: fullSystemPrompt },
             {
                 role: 'user',
-                content: `Question: ${question}\n\nContext from course:\n${contextString}\n\nAnswer the question using only the provided context. Include references to specific course locations (Day X → Chapter Y).`
+                content: `Question: ${question}\n\nContext from course:\n${contextString}\n\nAnswer the question using only the provided context. Do NOT include any chapter, day, or lab references in your answer.`
             }
         ];
 
@@ -347,8 +348,11 @@ Respond with ONLY the category name.`
             }
 
             const data = await response.json();
-            const answer = data.choices[0].message.content;
+            let answer = data.choices[0].message.content;
             const tokensUsed = data.usage.total_tokens;
+
+            // CRITICAL: Strip any references that the LLM may have generated
+            answer = this._stripLLMReferences(answer);
 
             // Calculate confidence score
             const confidence = await this.estimateConfidence(question, contextChunks, answer);
@@ -382,12 +386,21 @@ Respond with ONLY the category name.`
      * @param {string} question - Original question
      * @param {Array<Object>} contextChunks - Context chunks used
      * @param {string} answer - Generated answer
+     * @param {Object} adjustmentFactors - Optional adjustment factors for confidence
+     * @param {number} adjustmentFactors.referenceIntegrity - Reference integrity score (0-1)
+     * @param {number} adjustmentFactors.topicSpecificity - Topic specificity score (0-1)
+     * @param {number} adjustmentFactors.chunkAgreement - Chunk agreement score (0-1)
      * @returns {Promise<number>} Confidence score (0-1)
      */
-    async estimateConfidence(question, contextChunks, answer) {
+    async estimateConfidence(question, contextChunks, answer, adjustmentFactors = {}) {
         if (!this.apiKey || contextChunks.length === 0) {
             // Fallback: simple heuristic
-            return contextChunks.length > 0 ? 0.7 : 0.3;
+            const baseConfidence = contextChunks.length > 0 ? 0.7 : 0.3;
+            // Apply adjustments if provided
+            if (Object.keys(adjustmentFactors).length > 0) {
+                return this._applyConfidenceAdjustments(baseConfidence, adjustmentFactors);
+            }
+            return baseConfidence;
         }
 
         try {
@@ -415,21 +428,82 @@ Respond with ONLY the category name.`
             });
 
             if (!response.ok) {
-                return 0.7; // Default confidence
+                const baseConfidence = 0.7; // Default confidence
+                return this._applyConfidenceAdjustments(baseConfidence, adjustmentFactors);
             }
 
             const data = await response.json();
-            const confidence = parseFloat(data.choices[0].message.content.trim());
+            let confidence = parseFloat(data.choices[0].message.content.trim());
             
             // Validate and clamp
             if (isNaN(confidence)) {
-                return 0.7;
+                confidence = 0.7;
             }
-            return Math.max(0, Math.min(1, confidence));
+            confidence = Math.max(0, Math.min(1, confidence));
+
+            // Apply adjustments based on reference integrity, topic specificity, chunk agreement
+            if (Object.keys(adjustmentFactors).length > 0) {
+                confidence = this._applyConfidenceAdjustments(confidence, adjustmentFactors);
+            }
+
+            return confidence;
         } catch (error) {
             console.error('[LLMService] Error estimating confidence:', error);
-            return 0.7; // Default confidence
+            const baseConfidence = 0.7; // Default confidence
+            return this._applyConfidenceAdjustments(baseConfidence, adjustmentFactors);
         }
+    }
+
+    /**
+     * Apply confidence adjustments based on reference integrity, topic specificity, and chunk agreement
+     * @param {number} baseConfidence - Base confidence score (0-1)
+     * @param {Object} adjustmentFactors - Adjustment factors
+     * @param {number} adjustmentFactors.referenceIntegrity - Reference integrity score (0-1)
+     * @param {number} adjustmentFactors.topicSpecificity - Topic specificity score (0-1)
+     * @param {number} adjustmentFactors.chunkAgreement - Chunk agreement score (0-1)
+     * @returns {number} Adjusted confidence score (0-1)
+     * @private
+     */
+    _applyConfidenceAdjustments(baseConfidence, adjustmentFactors) {
+        let adjustedConfidence = baseConfidence;
+        const weights = {
+            referenceIntegrity: 0.4,  // 40% weight - most important
+            topicSpecificity: 0.35,   // 35% weight
+            chunkAgreement: 0.25      // 25% weight
+        };
+
+        // Calculate weighted adjustment
+        let totalAdjustment = 0;
+        let totalWeight = 0;
+
+        if (adjustmentFactors.referenceIntegrity !== undefined) {
+            const integrityScore = adjustmentFactors.referenceIntegrity;
+            const adjustment = (integrityScore - 0.5) * 0.3; // Scale: -0.15 to +0.15
+            totalAdjustment += adjustment * weights.referenceIntegrity;
+            totalWeight += weights.referenceIntegrity;
+        }
+
+        if (adjustmentFactors.topicSpecificity !== undefined) {
+            const specificityScore = adjustmentFactors.topicSpecificity;
+            const adjustment = (specificityScore - 0.5) * 0.25; // Scale: -0.125 to +0.125
+            totalAdjustment += adjustment * weights.topicSpecificity;
+            totalWeight += weights.topicSpecificity;
+        }
+
+        if (adjustmentFactors.chunkAgreement !== undefined) {
+            const agreementScore = adjustmentFactors.chunkAgreement;
+            const adjustment = (agreementScore - 0.5) * 0.2; // Scale: -0.1 to +0.1
+            totalAdjustment += adjustment * weights.chunkAgreement;
+            totalWeight += weights.chunkAgreement;
+        }
+
+        // Apply weighted adjustment
+        if (totalWeight > 0) {
+            adjustedConfidence = baseConfidence + (totalAdjustment / totalWeight);
+        }
+
+        // Clamp to valid range
+        return Math.max(0, Math.min(1, adjustedConfidence));
     }
 
     /**
@@ -448,6 +522,70 @@ Respond with ONLY the category name.`
         ];
 
         return directAnswerPatterns.some(pattern => pattern.test(answer));
+    }
+
+    /**
+     * Strip LLM-generated references from answer text
+     * Hard block for reference leakage patterns
+     * @param {string} answer - LLM-generated answer
+     * @returns {string} Answer with references removed
+     * @private
+     */
+    _stripLLMReferences(answer) {
+        if (!answer || typeof answer !== 'string') {
+            return answer;
+        }
+
+        let cleanedAnswer = answer;
+        let referenceFound = false;
+
+        // Pattern 1: "Day X → Chapter Y" or "Day X, Chapter Y"
+        const dayChapterPattern = /(?:Day\s+\d+[,\s]*(?:→|to|-)?\s*)?Chapter\s+\d+/gi;
+        if (dayChapterPattern.test(cleanedAnswer)) {
+            referenceFound = true;
+            cleanedAnswer = cleanedAnswer.replace(dayChapterPattern, '');
+        }
+
+        // Pattern 2: "Chapter X" standalone
+        const chapterPattern = /\bChapter\s+\d+\b/gi;
+        if (chapterPattern.test(cleanedAnswer)) {
+            referenceFound = true;
+            cleanedAnswer = cleanedAnswer.replace(chapterPattern, '');
+        }
+
+        // Pattern 3: "Day X" standalone (when not part of content)
+        const dayPattern = /\bDay\s+\d+\b/gi;
+        if (dayPattern.test(cleanedAnswer)) {
+            referenceFound = true;
+            cleanedAnswer = cleanedAnswer.replace(dayPattern, '');
+        }
+
+        // Pattern 4: "Lab X" or "Lab Y"
+        const labPattern = /\bLab\s+\d+\b/gi;
+        if (labPattern.test(cleanedAnswer)) {
+            referenceFound = true;
+            cleanedAnswer = cleanedAnswer.replace(labPattern, '');
+        }
+
+        // Pattern 5: "Day X → Chapter Y" with arrow
+        const arrowPattern = /Day\s+\d+\s*[→-]\s*Chapter\s+\d+/gi;
+        if (arrowPattern.test(cleanedAnswer)) {
+            referenceFound = true;
+            cleanedAnswer = cleanedAnswer.replace(arrowPattern, '');
+        }
+
+        // Clean up extra whitespace and punctuation
+        cleanedAnswer = cleanedAnswer
+            .replace(/\s+/g, ' ') // Multiple spaces to single
+            .replace(/\s*[.,;:]\s*[.,;:]+/g, '.') // Multiple punctuation
+            .replace(/^\s+|\s+$/g, '') // Trim
+            .replace(/\n\s*\n/g, '\n'); // Multiple newlines to single
+
+        if (referenceFound) {
+            console.warn('[LLMService] CRITICAL: LLM-generated references detected and removed from answer');
+        }
+
+        return cleanedAnswer;
     }
 }
 

@@ -112,18 +112,36 @@ class AICoachWidget {
         // Create widget container if it doesn't exist
         this._createContainer();
 
-        // Render widget
-        await this.render();
-
-        // Attach event listeners
-        this.attachEventListeners();
-
-        // Load conversation history (optional, don't fail if it errors)
+        // Load conversation history FIRST (before rendering)
+        // This ensures messages are available when widget is rendered
         try {
             await this.loadConversationHistory();
         } catch (error) {
             console.warn('[AICoachWidget] Error loading conversation history:', error);
         }
+
+        // Load recent queries (optional, don't fail if it errors)
+        // This will merge with conversation history and avoid duplicates
+        try {
+            await this.loadRecentQueries();
+        } catch (error) {
+            console.warn('[AICoachWidget] Error loading recent queries:', error);
+        }
+
+        // Sort messages by timestamp to ensure correct order
+        if (this.messages.length > 0) {
+            this.messages.sort((a, b) => {
+                const timeA = new Date(a.timestamp || 0).getTime();
+                const timeB = new Date(b.timestamp || 0).getTime();
+                return timeA - timeB;
+            });
+        }
+
+        // Render widget (now with messages loaded)
+        await this.render();
+
+        // Attach event listeners
+        this.attachEventListeners();
 
         // Show widget
         this.show();
@@ -261,14 +279,24 @@ class AICoachWidget {
             </div>
         `;
 
+        // Ensure no recent queries section exists (cleanup from old code)
+        const recentQueriesSection = this.container.querySelector('.recent-queries-section');
+        if (recentQueriesSection) {
+            recentQueriesSection.remove();
+        }
+
         // Render existing messages
         const messagesArea = document.getElementById('messages-area');
-        if (messagesArea && this.messages.length > 0) {
-            for (const message of this.messages) {
-                const messageEl = await this._renderMessage(message);
-                messagesArea.appendChild(messageEl);
+        if (messagesArea) {
+            if (this.messages.length > 0) {
+                // Clear welcome message if we have messages
+                messagesArea.innerHTML = '';
+                for (const message of this.messages) {
+                    const messageEl = await this._renderMessage(message);
+                    messagesArea.appendChild(messageEl);
+                }
+                this._scrollToBottom();
             }
-            this._scrollToBottom();
         }
     }
 
@@ -348,6 +376,7 @@ class AICoachWidget {
         `;
     }
 
+
     /**
      * Attach event listeners
      */
@@ -374,6 +403,7 @@ class AICoachWidget {
         if (sendBtn) {
             sendBtn.addEventListener('click', () => this.handleSend());
         }
+
 
         // Input enter key
         const queryInput = document.getElementById('query-input');
@@ -551,12 +581,21 @@ class AICoachWidget {
         this._scrollToBottom();
 
         try {
-            // Process query
-            const response = await aiCoachService.processQuery(
+            // Process query with timeout protection
+            const queryPromise = aiCoachService.processQuery(
                 this.currentUser.id,
                 this.currentCourseId,
                 question
             );
+            
+            // Add timeout (120 seconds for complex queries like AEO, Technical SEO that need dedicated chapter search)
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => {
+                    reject(new Error('Query processing timed out after 120 seconds. This may happen with complex queries. Please try rephrasing your question or try again.'));
+                }, 120000); // Increased to 120 seconds
+            });
+            
+            const response = await Promise.race([queryPromise, timeoutPromise]);
 
             // Remove loading
             loadingEl.remove();
@@ -640,6 +679,85 @@ class AICoachWidget {
             showConfidence: message.type === 'ai' && message.confidence !== undefined && message.confidence < 0.65,
             courseId: this.currentCourseId
         });
+    }
+
+    /**
+     * Load recent queries as chat messages
+     */
+    async loadRecentQueries() {
+        if (!this.currentCourseId || !this.currentUser) {
+            return;
+        }
+
+        try {
+            const { queryHistoryService } = await import('../../../services/query-history-service.js');
+            const recentQueries = await queryHistoryService.getRecentQueries(
+                this.currentUser.id,
+                this.currentCourseId,
+                10 // Load more queries to show as chat history
+            );
+
+            if (!recentQueries || recentQueries.length === 0) {
+                return;
+            }
+
+            // Convert recent queries to message format and add to messages array
+            // Only add if not already in messages (to avoid duplicates from conversation history)
+            const existingMessageIds = new Set(this.messages.map(m => m.id));
+            
+            // Sort by creation date (oldest first for proper chat order)
+            const sortedQueries = [...recentQueries].sort((a, b) => 
+                new Date(a.createdAt) - new Date(b.createdAt)
+            );
+
+            for (const query of sortedQueries) {
+                // Add user message (question)
+                if (!existingMessageIds.has(query.id)) {
+                    this.messages.push({
+                        id: query.id,
+                        type: 'user',
+                        text: query.question,
+                        timestamp: query.createdAt
+                    });
+                    existingMessageIds.add(query.id);
+                }
+
+                // Add AI response if available
+                if (query.latestResponse && !existingMessageIds.has(query.latestResponse.id)) {
+                    this.messages.push({
+                        id: query.latestResponse.id,
+                        type: 'ai',
+                        answer: query.latestResponse.answer,
+                        references: query.latestResponse.references || [],
+                        confidence: query.latestResponse.confidence_score,
+                        timestamp: query.latestResponse.created_at
+                    });
+                    existingMessageIds.add(query.latestResponse.id);
+                }
+            }
+
+            // Re-render messages in the chat window
+            const messagesArea = document.getElementById('messages-area');
+            if (messagesArea) {
+                // Clear welcome message and any existing content
+                messagesArea.innerHTML = '';
+                
+                // Remove any recent queries section that might exist
+                const recentQueriesSection = this.container?.querySelector('.recent-queries-section');
+                if (recentQueriesSection) {
+                    recentQueriesSection.remove();
+                }
+                
+                // Render all messages
+                for (const message of this.messages) {
+                    const messageEl = await this._renderMessage(message);
+                    messagesArea.appendChild(messageEl);
+                }
+                this._scrollToBottom();
+            }
+        } catch (error) {
+            console.warn('[AICoachWidget] Error loading recent queries:', error);
+        }
     }
 
     /**
@@ -727,7 +845,14 @@ class AICoachWidget {
                 }
             });
 
-            // Re-render messages
+            // Sort messages by timestamp to ensure correct order
+            this.messages.sort((a, b) => {
+                const timeA = new Date(a.timestamp || 0).getTime();
+                const timeB = new Date(b.timestamp || 0).getTime();
+                return timeA - timeB;
+            });
+
+            // Re-render messages (only if widget is already rendered)
             const messagesArea = document.getElementById('messages-area');
             if (messagesArea) {
                 messagesArea.innerHTML = '';
@@ -737,6 +862,7 @@ class AICoachWidget {
                 }
                 this._scrollToBottom();
             }
+            // If widget not rendered yet, messages will be rendered in render() method
         } catch (error) {
             console.error('[AICoachWidget] Error loading conversation history:', error);
         }

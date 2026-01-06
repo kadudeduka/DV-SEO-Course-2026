@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="./lms/styles/components.css">
     <link rel="stylesheet" href="./lms/styles/reports.css">
     <link rel="stylesheet" href="./lms/styles/ai-coach.css">
+    <link rel="stylesheet" href="./lms/styles/coach-section.css">
 </head>
 <body>
     <!-- Skip to main content link for screen readers -->
@@ -926,6 +927,83 @@
         // ============================================================================
         // AI COACH ROUTES
         // ============================================================================
+
+        // Coach Section Routes
+        router.addRoute('/courses/:id/coach', async (route) => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            const courseId = route.params.id;
+            
+            // Check user role and redirect accordingly
+            try {
+                const { authService } = await import('./lms/services/auth-service.js');
+                const currentUser = await authService.getCurrentUser();
+                
+                if (!currentUser) {
+                    router.navigate('/login');
+                    return;
+                }
+
+                // Redirect learners to AI Coach page, trainers to Trainer page
+                if (currentUser.role === 'learner') {
+                    router.navigate(`/courses/${courseId}/coach/ai`);
+                } else if (currentUser.role === 'trainer' || currentUser.role === 'admin') {
+                    router.navigate(`/courses/${courseId}/coach/trainer`);
+                } else {
+                    router.navigate(`/courses/${courseId}`);
+                }
+            } catch (error) {
+                console.error('[Router] Error in /courses/:id/coach handler:', error);
+                router.navigate(`/courses/${courseId}`);
+            }
+        });
+
+        router.addRoute('/courses/:id/coach/ai', async (route) => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            try {
+                const { default: CoachAIPage } = await import('./lms/components/coach-ai-page.js');
+                const coachPage = new CoachAIPage(container);
+                await coachPage.show(route.params.id);
+            } catch (error) {
+                console.error('[Router] Error loading Coach-AI page:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Coach Page</div>
+                        <div class="error-message">${error.message || 'Failed to load AI Coach page'}</div>
+                    </div>
+                `;
+            }
+        });
+
+        router.addRoute('/courses/:id/coach/trainer', async (route) => {
+            const container = document.getElementById('app-container');
+            if (!container) {
+                console.error('[Router] Container not found!');
+                return;
+            }
+            try {
+                const { default: CoachTrainerPage } = await import('./lms/components/coach-trainer-page.js');
+                const coachPage = new CoachTrainerPage(container);
+                await coachPage.show(route.params.id);
+            } catch (error) {
+                console.error('[Router] Error loading Coach-Trainer page:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="error-icon">⚠️</div>
+                        <div class="error-title">Error Loading Trainer Page</div>
+                        <div class="error-message">${error.message || 'Failed to load Trainer page'}</div>
+                    </div>
+                `;
+            }
+        });
 
         // Admin: AI Coach Content Indexing
         router.addRoute('/admin/ai-coach/indexing', async () => {

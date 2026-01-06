@@ -529,6 +529,76 @@
 }
 
 /* ============================================================================
+   RECENT QUERIES SECTION
+   ============================================================================ */
+
+.recent-queries-section {
+    border-top: 1px solid var(--color-border-light, #e5e7eb);
+    padding: 1rem;
+    background: var(--color-bg-secondary, #f9fafb);
+}
+
+.recent-queries-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.recent-queries-title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-secondary, #6b7280);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.view-all-link {
+    font-size: 0.75rem;
+    color: var(--color-primary, #6366F1);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.view-all-link:hover {
+    color: var(--color-primary-dark, #4f46e5);
+    text-decoration: underline;
+}
+
+.recent-queries-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.recent-query-item {
+    padding: 0.75rem;
+    background: var(--color-bg-primary, #fff);
+    border: 1px solid var(--color-border-light, #e5e7eb);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.recent-query-item:hover {
+    border-color: var(--color-primary, #6366F1);
+    background: var(--color-bg-hover, #f3f4f6);
+}
+
+.recent-query-text {
+    font-size: 0.875rem;
+    color: var(--color-text-primary, #1A1F36);
+    line-height: 1.4;
+    margin-bottom: 0.25rem;
+}
+
+.recent-query-date {
+    font-size: 0.75rem;
+    color: var(--color-text-tertiary, #9ca3af);
+}
+
+/* ============================================================================
    RESPONSIVE DESIGN
    ============================================================================ */
 

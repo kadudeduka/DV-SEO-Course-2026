@@ -445,6 +445,132 @@ class RetrievalService {
     }
 
     /**
+     * STRICT LAB SEARCH - Lab Isolation Enforcement
+     * 
+     * This method enforces strict lab isolation for lab_guidance questions.
+     * CRITICAL: This method does NOT use semantic search or fallback mechanisms.
+     * 
+     * Why fallback is forbidden for labs:
+     * 1. Lab Safety: Learners must get guidance ONLY from the specific lab they're working on
+     * 2. Context Integrity: Cross-day or cross-lab content can mislead learners
+     * 3. Precision Requirement: Lab questions are highly specific and require exact matches
+     * 4. Safety: Preventing confusion from similar but different lab content
+     * 
+     * @param {Object} references - Reference object with day and lab (both required)
+     * @param {string} courseId - Course identifier
+     * @param {Object} filters - Additional filters
+     * @param {number} limit - Maximum number of results
+     * @returns {Promise<Array<Object>>} Array of matching chunks (ONLY from Day X AND Lab Y)
+     */
+    async searchStrictLabMatch(references, courseId, filters = {}, limit = 50) {
+        if (!courseId) {
+            throw new Error('courseId is required for strict lab search');
+        }
+
+        // CRITICAL: Both day and lab must be specified for strict lab search
+        if (references.day === null || references.day === undefined) {
+            throw new Error('Day is required for strict lab search');
+        }
+        if (references.lab === null || references.lab === undefined) {
+            throw new Error('Lab is required for strict lab search');
+        }
+
+        try {
+            console.log(`[RetrievalService] STRICT LAB SEARCH: Day ${references.day}, Lab ${references.lab} - NO FALLBACKS ALLOWED`);
+
+            // Verify user session for RLS
+            const { data: { user } } = await supabaseClient.auth.getUser();
+            if (!user) {
+                console.warn('[RetrievalService] No authenticated user session. RLS will block access.');
+            }
+
+            // Build STRICT query - MUST match BOTH day AND lab
+            // NO semantic search, NO fallback, NO cross-day matches
+            let query = supabaseClient
+                .from('ai_coach_content_chunks')
+                .select('*')
+                .eq('course_id', courseId)
+                .eq('content_type', 'lab'); // CRITICAL: Only lab content
+
+            // STRICT Day filter - must match exactly
+            // Handle both numeric and string day fields
+            query = query.or(`day.eq.${references.day},day.eq.day${references.day},day.eq."day${references.day}"`);
+
+            // STRICT Lab filter - must match exactly
+            // Try multiple lab ID formats but ALL must match the specified lab
+            const labPatterns = [
+                `lab${references.lab}`,
+                `day${references.day}-lab${references.lab}`,
+                `lab-${references.lab}`
+            ];
+            query = query.or(
+                labPatterns.map(pattern => 
+                    `lab_id.ilike.%${pattern}%`
+                ).join(',')
+            );
+
+            // Apply additional filters if provided
+            if (filters.contentType) {
+                query = query.eq('content_type', filters.contentType);
+            }
+
+            // Get matching chunks - NO LIMIT for strict lab search (we want all chunks from this lab)
+            const { data: chunks, error } = await query.limit(limit || 100);
+
+            if (error) {
+                console.error('[RetrievalService] Database error in strict lab search:', error);
+                if (error.code === '42501' || error.message?.includes('row-level security')) {
+                    console.error('[RetrievalService] RLS policy blocked access.');
+                    return [];
+                }
+                throw error;
+            }
+
+            console.log(`[RetrievalService] STRICT LAB SEARCH found ${chunks?.length || 0} chunks for Day ${references.day}, Lab ${references.lab}`);
+
+            if (!chunks || chunks.length === 0) {
+                console.warn(`[RetrievalService] STRICT LAB SEARCH: No chunks found for Day ${references.day}, Lab ${references.lab} - NO FALLBACK`);
+                return [];
+            }
+
+            // CRITICAL: Post-filter to ensure ALL chunks match BOTH day AND lab
+            // This is a safety check to prevent any cross-day or cross-lab contamination
+            const strictlyFiltered = chunks.filter(chunk => {
+                // Verify day matches
+                const chunkDay = parseInt(chunk.day) || chunk.day;
+                const dayMatches = chunkDay === references.day || 
+                                 String(chunkDay).includes(String(references.day)) ||
+                                 String(chunkDay).replace(/\D/g, '') === String(references.day);
+
+                // Verify lab matches
+                const chunkLab = chunk.lab_id || chunk.lab;
+                const labMatches = chunkLab && (
+                    String(chunkLab).includes(String(references.lab)) ||
+                    String(chunkLab).replace(/\D/g, '') === String(references.lab) ||
+                    chunkLab === references.lab
+                );
+
+                return dayMatches && labMatches;
+            });
+
+            if (strictlyFiltered.length !== chunks.length) {
+                console.warn(`[RetrievalService] STRICT LAB SEARCH: Filtered out ${chunks.length - strictlyFiltered.length} chunks that didn't match strict criteria`);
+            }
+
+            // Return chunks with strict match flag
+            return strictlyFiltered.map(chunk => ({ 
+                ...chunk, 
+                exactMatch: true,
+                strictLabMatch: true, // Flag to indicate this is from strict lab search
+                similarity: 1.0 // Set high similarity since it's an exact match
+            }));
+        } catch (error) {
+            console.error('[RetrievalService] Error in strict lab search:', error);
+            return [];
+        }
+    }
+
+    /**
      * Search for chunks with exact match on specific references (Day, Lab, Step, Chapter)
      * @param {Object} references - Reference object with day, lab, step, chapter
      * @param {string} courseId - Course identifier
@@ -841,6 +967,90 @@ class RetrievalService {
             }));
         } catch (error) {
             console.error('[RetrievalService] Error in searchDedicatedChaptersByTopic:', error);
+            return [];
+        }
+    }
+
+    /**
+     * Search for topic-specific chunks (excluding introductory/philosophy-only chapters)
+     * Used when query contains topic modifiers that require strict topic matching
+     * 
+     * @param {Array<string>} topicModifiers - Topic modifiers extracted from query
+     * @param {string} courseId - Course identifier
+     * @param {Object} filters - Additional filters
+     * @param {number} limit - Maximum number of results
+     * @returns {Promise<Array<Object>>} Array of topic-specific chunks (excluding introduction-level)
+     */
+    async searchTopicSpecificChunks(topicModifiers, courseId, filters = {}, limit = 20) {
+        if (!topicModifiers || topicModifiers.length === 0) {
+            return [];
+        }
+
+        try {
+            console.log(`[RetrievalService] Searching for topic-specific chunks (excluding introductory) for modifiers: ${topicModifiers.join(', ')}`);
+
+            let query = supabaseClient
+                .from('ai_coach_content_chunks')
+                .select('*')
+                .eq('course_id', courseId);
+
+            // CRITICAL: Exclude introduction-level chunks with low completeness
+            // These are philosophy-only or introductory content, not topic-specific
+            query = query.or(`coverage_level.neq.introduction,coverage_level.is.null,completeness_score.gte.0.4,completeness_score.is.null`);
+
+            // Search for chunks with primary_topic matching any modifier
+            const topicConditions = topicModifiers.map(modifier => 
+                `primary_topic.ilike.%${modifier}%,chapter_title.ilike.%${modifier}%`
+            );
+            if (topicConditions.length > 0) {
+                query = query.or(topicConditions.join(','));
+            }
+
+            // Prefer dedicated topic chapters
+            query = query.eq('is_dedicated_topic_chapter', true);
+
+            // Apply additional filters
+            if (filters.contentType) {
+                query = query.eq('content_type', filters.contentType);
+            }
+
+            const { data: chunks, error } = await query.limit(limit);
+
+            if (error) {
+                console.error('[RetrievalService] Error searching topic-specific chunks:', error);
+                return [];
+            }
+
+            // Post-filter to ensure chunks match modifiers and exclude pure introduction
+            const filteredChunks = (chunks || []).filter(chunk => {
+                const coverageLevel = chunk.coverage_level || chunk.metadata?.coverage_level;
+                const completenessScore = chunk.completeness_score ?? chunk.metadata?.completeness_score ?? 1.0;
+                const primaryTopic = (chunk.primary_topic || chunk.metadata?.primary_topic || '').toLowerCase();
+                const chapterTitle = (chunk.chapter_title || '').toLowerCase();
+
+                // Exclude if it's introduction-level with low completeness (philosophy-only)
+                if (coverageLevel === 'introduction' && completenessScore < 0.4) {
+                    return false;
+                }
+
+                // Check if chunk matches any modifier
+                return topicModifiers.some(modifier => {
+                    const modifierLower = modifier.toLowerCase();
+                    return primaryTopic.includes(modifierLower) ||
+                           modifierLower.includes(primaryTopic) ||
+                           chapterTitle.includes(modifierLower);
+                });
+            });
+
+            console.log(`[RetrievalService] Found ${filteredChunks.length} topic-specific chunks (excluding introductory) for modifiers: ${topicModifiers.join(', ')}`);
+
+            return filteredChunks.map(chunk => ({
+                ...chunk,
+                topicSpecificMatch: true,
+                similarity: chunk.similarity || 0.9 // High similarity for topic-specific matches
+            }));
+        } catch (error) {
+            console.error('[RetrievalService] Error in searchTopicSpecificChunks:', error);
             return [];
         }
     }

@@ -1,87 +1,90 @@
-# Backend Scripts
+# AI Coach Data Management Scripts
 
-## cleanup_old_submissions.py
+## Delete Course AI Coach Data
 
-Automated cleanup script for old lab submission files.
+### SQL Script (Manual)
+**File:** `delete-course-ai-coach-data.sql`
 
-### Purpose
+Run this SQL script in Supabase SQL Editor to delete all AI Coach data for a specific course.
 
-Deletes lab submission files from Supabase Storage that are older than 30 days. This helps manage storage costs and ensures compliance with data retention policies.
+**Usage:**
+1. Open Supabase SQL Editor
+2. Replace `'seo-master-2026'` with your course ID in the script
+3. Execute the script
 
-### Setup
+**What it deletes:**
+- Conversation history
+- Feedback
+- Escalations
+- Responses
+- Queries
+- Chunk versions
+- Content chunks
+- Ingestion records
 
-1. **Install Dependencies**
+## Re-ingest Course Content
 
+### Node.js Script
+**File:** `lms/scripts/index-course-content-node.js`
+
+Re-ingests course content from markdown files into the AI Coach database.
+**Note:** Use the Node.js-compatible version which uses npm packages instead of CDN imports.
+
+**Usage:**
 ```bash
-pip install supabase
+node lms/scripts/index-course-content-node.js --course-id=<courseId> --full --force
 ```
 
-2. **Set Environment Variables**
-
+**Example:**
 ```bash
-export SUPABASE_URL="your-supabase-url"
-export SUPABASE_SERVICE_ROLE_KEY="your-service-role-key"
+node lms/scripts/index-course-content-node.js --course-id=seo-master-2026 --full --force
 ```
 
-Or create a `.env` file:
-```
-SUPABASE_URL=your-supabase-url
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-```
+**What it does:**
+1. Scans course directory for markdown files
+2. Extracts chunks from each file
+3. Generates embeddings for each chunk
+4. Enriches chunks with metadata
+5. Inserts/updates chunks in database
 
-3. **Test Run (Dry Run)**
+## Complete Delete and Re-ingest
 
+### Shell Script
+**File:** `delete-and-reingest-course.sh`
+
+Combines deletion and re-ingestion in one script.
+
+**Usage:**
 ```bash
-python backend/scripts/cleanup_old_submissions.py --dry-run
+./backend/scripts/delete-and-reingest-course.sh <courseId>
 ```
 
-4. **Schedule Daily Execution**
-
-### Cron Setup (Linux/Mac)
-
-Add to crontab:
+**Example:**
 ```bash
-crontab -e
+./backend/scripts/delete-and-reingest-course.sh seo-master-2026
 ```
 
-Add this line (runs daily at 2 AM):
-```
-0 2 * * * /path/to/project/backend/scripts/cleanup_old_submissions.sh >> /var/log/lab-submission-cleanup.log 2>&1
-```
+**Note:** This script requires you to manually run the SQL deletion in Supabase SQL Editor first.
 
-### Windows Task Scheduler
+## Step-by-Step Process
 
-1. Open Task Scheduler
-2. Create Basic Task
-3. Set trigger: Daily at 2:00 AM
-4. Set action: Start a program
-5. Program: `python`
-6. Arguments: `backend/scripts/cleanup_old_submissions.py`
-7. Start in: Project directory path
+1. **Delete existing data:**
+   - Open Supabase SQL Editor
+   - Edit `backend/scripts/delete-course-ai-coach-data.sql` to set your course ID
+   - Execute the SQL script
 
-### Options
+2. **Re-ingest content:**
+   ```bash
+   node lms/scripts/index-course-content-node.js --course-id=seo-master-2026 --full --force
+   ```
 
-- `--days N`: Delete submissions older than N days (default: 30)
-- `--dry-run`: Show what would be deleted without actually deleting
+3. **Verify:**
+   - Check Supabase dashboard for chunk count
+   - Test AI Coach with a question
 
-### What Gets Deleted
+## Important Notes
 
-- Files in Supabase Storage bucket `lab-submissions` older than 30 days
-- Corresponding database records in `lab_submissions` table
-
-### Safety
-
-- The script only deletes submissions with `file_url` set (DOCX submissions)
-- Text-based submissions (legacy) are not affected
-- Dry-run mode allows testing without deletion
-- Logs all operations for audit trail
-
-### Monitoring
-
-Check logs at: `/var/log/lab-submission-cleanup.log`
-
-Or redirect output:
-```bash
-python backend/scripts/cleanup_old_submissions.py >> cleanup.log 2>&1
-```
-
+- **Backup first:** Consider backing up your data before deletion
+- **Metadata:** The re-ingestion script uses heuristic metadata analysis (fast but less accurate). For better metadata, you may want to run the full content ingestion service with LLM analysis.
+- **Embeddings:** Generating embeddings can take time for large courses
+- **RLS Policies:** Ensure your user has proper permissions to insert chunks

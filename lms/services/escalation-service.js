@@ -15,16 +15,23 @@ class EscalationService {
 
     /**
      * Create escalation for a query
-     * @param {string} queryId - Query ID
+     * @param {string} queryId - Query ID (can be null if answer was blocked before query storage)
      * @param {string} learnerId - Learner ID
      * @param {string} courseId - Course ID
      * @param {string} question - Original question
      * @param {number} confidence - AI confidence score
      * @param {Object} context - AI context (chunks, etc.)
      * @param {Object} progressSnapshot - Learner progress snapshot
+     * @param {Object} escalationDetails - Additional escalation details
+     * @param {string} escalationDetails.reason - Escalation reason: 'blocked', 'low_confidence', 'invariant_violation', 'reference_validation_failed', 'strict_lab_missing'
+     * @param {Array} escalationDetails.violatedInvariants - Array of violated invariant objects
+     * @param {Array} escalationDetails.chunksUsed - Full chunk details (not just IDs)
+     * @param {Object} escalationDetails.governanceDetails - Full governance check results
+     * @param {boolean} escalationDetails.referenceValidationFailed - True if reference validation failed
+     * @param {boolean} escalationDetails.confidenceDowngraded - True if confidence was downgraded
      * @returns {Promise<Object>} Escalation record
      */
-    async createEscalation(queryId, learnerId, courseId, question, confidence, context = {}, progressSnapshot = {}) {
+    async createEscalation(queryId, learnerId, courseId, question, confidence, context = {}, progressSnapshot = {}, escalationDetails = {}) {
         try {
             // Get trainer for this course
             const trainerId = await this._getTrainerForCourse(courseId, learnerId);
@@ -33,24 +40,70 @@ class EscalationService {
                 throw new Error('No trainer assigned to this course');
             }
 
+            // Determine escalation reason if not provided
+            let escalationReason = escalationDetails.reason;
+            if (!escalationReason) {
+                if (confidence < this.confidenceThreshold) {
+                    escalationReason = 'low_confidence';
+                } else if (escalationDetails.violatedInvariants && escalationDetails.violatedInvariants.length > 0) {
+                    escalationReason = 'invariant_violation';
+                } else if (escalationDetails.referenceValidationFailed) {
+                    escalationReason = 'reference_validation_failed';
+                } else {
+                    escalationReason = 'blocked';
+                }
+            }
+
+            // Prepare chunks_used - store full chunk details if available
+            let chunksUsed = null;
+            if (escalationDetails.chunksUsed && escalationDetails.chunksUsed.length > 0) {
+                // Store full chunk details (sanitize to avoid storing embeddings)
+                chunksUsed = escalationDetails.chunksUsed.map(chunk => ({
+                    id: chunk.id,
+                    day: chunk.day,
+                    chapter_id: chunk.chapter_id,
+                    chapter_title: chunk.chapter_title,
+                    lab_id: chunk.lab_id,
+                    content_type: chunk.content_type,
+                    content_preview: chunk.content ? chunk.content.substring(0, 500) : null, // First 500 chars
+                    similarity: chunk.similarity,
+                    coverage_level: chunk.coverage_level,
+                    completeness_score: chunk.completeness_score,
+                    primary_topic: chunk.primary_topic,
+                    is_dedicated_topic_chapter: chunk.is_dedicated_topic_chapter
+                }));
+            } else if (context.chunkIds && context.chunkIds.length > 0) {
+                // Fallback: store chunk IDs if full details not available
+                chunksUsed = context.chunkIds.map(id => ({ id }));
+            }
+
             // Create escalation record
+            const escalationData = {
+                query_id: queryId, // Can be null if answer was blocked
+                learner_id: learnerId,
+                trainer_id: trainerId,
+                original_question: question,
+                ai_context: {
+                    chunk_ids: context.chunkIds || [],
+                    chunks_used_count: context.chunksUsed || 0,
+                    intent: context.intent,
+                    model_used: context.modelUsed,
+                    ...(context.adjustmentFactors && { adjustment_factors: context.adjustmentFactors })
+                },
+                ai_confidence: confidence,
+                learner_progress: progressSnapshot,
+                escalation_reason: escalationReason,
+                violated_invariants: escalationDetails.violatedInvariants || [],
+                chunks_used: chunksUsed,
+                governance_details: escalationDetails.governanceDetails || null,
+                reference_validation_failed: escalationDetails.referenceValidationFailed || false,
+                confidence_downgraded: escalationDetails.confidenceDowngraded || false,
+                status: 'pending'
+            };
+
             const { data: escalation, error } = await supabaseClient
                 .from('ai_coach_escalations')
-                .insert({
-                    query_id: queryId,
-                    learner_id: learnerId,
-                    trainer_id: trainerId,
-                    original_question: question,
-                    ai_context: {
-                        chunk_ids: context.chunkIds || [],
-                        chunks_used: context.chunksUsed || [],
-                        intent: context.intent,
-                        model_used: context.modelUsed
-                    },
-                    ai_confidence: confidence,
-                    learner_progress: progressSnapshot,
-                    status: 'pending'
-                })
+                .insert(escalationData)
                 .select()
                 .single();
 
@@ -59,7 +112,7 @@ class EscalationService {
             }
 
             // Notify trainer
-            await this._notifyTrainer(trainerId, escalation.id, question, learnerId);
+            await this._notifyTrainer(trainerId, escalation.id, question, learnerId, escalationReason);
 
             return escalation;
         } catch (error) {
@@ -97,7 +150,7 @@ class EscalationService {
      * Notify trainer about escalation
      * @private
      */
-    async _notifyTrainer(trainerId, escalationId, question, learnerId) {
+    async _notifyTrainer(trainerId, escalationId, question, learnerId, escalationReason = null) {
         try {
             // Get learner name
             const { data: learner } = await supabaseClient
@@ -108,17 +161,33 @@ class EscalationService {
 
             const learnerName = learner?.full_name || learner?.name || 'a learner';
 
+            // Build notification message based on escalation reason
+            let title = 'AI Coach Escalation';
+            let message = `${learnerName} needs help with: "${question.substring(0, 100)}${question.length > 100 ? '...' : ''}"`;
+            
+            if (escalationReason) {
+                const reasonMessages = {
+                    'blocked': 'Answer blocked by governance rules',
+                    'low_confidence': 'Low confidence answer',
+                    'invariant_violation': 'Invariant violation detected',
+                    'reference_validation_failed': 'Reference validation failed',
+                    'strict_lab_missing': 'Lab content not found'
+                };
+                title = `AI Coach Escalation: ${reasonMessages[escalationReason] || escalationReason}`;
+            }
+
             // Create notification
             await notificationService.createNotification({
                 user_id: trainerId,
                 type: 'ai_coach_escalation',
-                title: 'AI Coach Escalation',
-                message: `${learnerName} needs help with: "${question.substring(0, 100)}${question.length > 100 ? '...' : ''}"`,
+                title: title,
+                message: message,
                 link: `#/trainer/ai-escalations/${escalationId}`,
                 metadata: {
                     escalation_id: escalationId,
                     learner_id: learnerId,
-                    question: question
+                    question: question,
+                    escalation_reason: escalationReason
                 }
             });
         } catch (error) {

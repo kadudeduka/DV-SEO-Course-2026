@@ -90,18 +90,42 @@ class ReferenceLink {
             parts.push(`Day ${reference.day}`);
         }
 
+        // Parse chapter_id to extract readable chapter number
+        // Format: "day2-ch1" -> "Chapter 1" or "day2-ch2" -> "Chapter 2"
+        let chapterDisplay = null;
         if (reference.chapter) {
-            parts.push(`Chapter ${reference.chapter}`);
+            // Check if chapter is in format "dayX-chY" or just a number
+            const chapterMatch = reference.chapter.match(/day\d+-ch(\d+)/i);
+            if (chapterMatch) {
+                chapterDisplay = `Chapter ${chapterMatch[1]}`;
+            } else if (/^\d+$/.test(reference.chapter)) {
+                // Just a number
+                chapterDisplay = `Chapter ${reference.chapter}`;
+            } else {
+                // Use as-is if not in expected format
+                chapterDisplay = `Chapter ${reference.chapter}`;
+            }
+        }
+
+        if (chapterDisplay) {
+            parts.push(chapterDisplay);
         }
 
         if (reference.chapter_title) {
             parts.push(reference.chapter_title);
-        } else if (reference.chapter) {
+        } else if (reference.chapter && !chapterDisplay) {
+            // Fallback if chapter_title not available
             parts.push(reference.chapter);
         }
 
         if (reference.lab_id) {
-            parts.push(`Lab: ${reference.lab_id}`);
+            // Parse lab_id if it's in format "dayX-labY"
+            const labMatch = reference.lab_id.match(/day\d+-lab(\d+)/i);
+            if (labMatch) {
+                parts.push(`Lab ${labMatch[1]}`);
+            } else {
+                parts.push(`Lab: ${reference.lab_id}`);
+            }
         }
 
         return parts.join(' → ');

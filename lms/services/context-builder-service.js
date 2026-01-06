@@ -317,6 +317,130 @@ class ContextBuilderService {
     }
 
     /**
+     * Extract topic modifiers that require strict topic matching
+     * These modifiers indicate the question requires topic-specific content, not introductory
+     * @param {string} question - User question
+     * @returns {Array<string>} Topic modifiers that require strict matching
+     */
+    extractTopicModifiers(question) {
+        const lowerQuestion = question.toLowerCase();
+        const topicModifiers = [];
+        
+        // Define topic modifiers that require strict topic-specific content
+        // These indicate the question is about implementation, technical details, audits, etc.
+        const strictModifiers = [
+            'technical', 'implementation', 'implement', 'audit', 'auditing',
+            'aeo', 'answer engine optimization',
+            'ecommerce', 'local seo', 'mobile seo',
+            'on-page', 'off-page',
+            'strategy', 'strategies', 'strategic',
+            'advanced', 'comprehensive',
+            'how to', 'how do', 'how can',
+            'step by step', 'step-by-step',
+            'practical', 'practically',
+            'execute', 'execution',
+            'perform', 'performing',
+            'conduct', 'conducting'
+        ];
+        
+        for (const modifier of strictModifiers) {
+            if (lowerQuestion.includes(modifier)) {
+                topicModifiers.push(modifier);
+            }
+        }
+        
+        return [...new Set(topicModifiers)]; // Remove duplicates
+    }
+
+    /**
+     * Detect named course concepts that require course anchoring
+     * @param {string} question - User question
+     * @returns {Object} Concept detection result with requires_course_anchoring flag and detected concepts
+     */
+    detectCourseConcepts(question) {
+        const detectedConcepts = [];
+
+        // Known course concepts (acronyms and named concepts)
+        const courseConcepts = [
+            // Acronyms
+            { pattern: /\bAEO\b/i, name: 'AEO', fullName: 'Answer Engine Optimization' },
+            { pattern: /\bE-E-A-T\b/i, name: 'E-E-A-T', fullName: 'Experience, Expertise, Authority, Trust' },
+            { pattern: /\bEAT\b/i, name: 'E-E-A-T', fullName: 'Experience, Expertise, Authority, Trust' },
+            { pattern: /\bPAA\b/i, name: 'PAA', fullName: 'People Also Ask' },
+            { pattern: /\bCWV\b/i, name: 'CWV', fullName: 'Core Web Vitals' },
+            { pattern: /\bSERP\b/i, name: 'SERP', fullName: 'Search Engine Results Page' },
+            
+            // Named concepts (case-sensitive patterns)
+            { pattern: /\bTechnical SEO\b/i, name: 'Technical SEO', fullName: 'Technical SEO' },
+            { pattern: /\bAnswer Engine Optimization\b/i, name: 'AEO', fullName: 'Answer Engine Optimization' },
+            { pattern: /\bIndex Bloat\b/i, name: 'Index Bloat', fullName: 'Index Bloat' },
+            { pattern: /\bIndexation\b/i, name: 'Indexation', fullName: 'Indexation' },
+            { pattern: /\bCrawlability\b/i, name: 'Crawlability', fullName: 'Crawlability' },
+            { pattern: /\bIndexability\b/i, name: 'Indexability', fullName: 'Indexability' },
+            { pattern: /\bCrawl Budget\b/i, name: 'Crawl Budget', fullName: 'Crawl Budget' },
+            { pattern: /\bCore Web Vitals\b/i, name: 'Core Web Vitals', fullName: 'Core Web Vitals' },
+            { pattern: /\bFeatured Snippet\b/i, name: 'Featured Snippet', fullName: 'Featured Snippet' },
+            { pattern: /\bPeople Also Ask\b/i, name: 'People Also Ask', fullName: 'People Also Ask' },
+            { pattern: /\bZero-Click SEO\b/i, name: 'Zero-Click SEO', fullName: 'Zero-Click SEO' },
+            { pattern: /\bZero Click\b/i, name: 'Zero-Click SEO', fullName: 'Zero-Click SEO' },
+            { pattern: /\bLink Equity\b/i, name: 'Link Equity', fullName: 'Link Equity' },
+            { pattern: /\bInternal Linking\b/i, name: 'Internal Linking', fullName: 'Internal Linking' },
+            { pattern: /\bOn-Page SEO\b/i, name: 'On-Page SEO', fullName: 'On-Page SEO' },
+            { pattern: /\bOff-Page SEO\b/i, name: 'Off-Page SEO', fullName: 'Off-Page SEO' },
+            { pattern: /\bEcommerce SEO\b/i, name: 'Ecommerce SEO', fullName: 'Ecommerce SEO' },
+            { pattern: /\bLocal SEO\b/i, name: 'Local SEO', fullName: 'Local SEO' },
+            { pattern: /\bJavaScript SEO\b/i, name: 'JavaScript SEO', fullName: 'JavaScript SEO' },
+            { pattern: /\bHelpful Content\b/i, name: 'Helpful Content', fullName: 'Helpful Content' },
+            { pattern: /\bCanonicalization\b/i, name: 'Canonicalization', fullName: 'Canonicalization' },
+            { pattern: /\bDuplicate Content\b/i, name: 'Duplicate Content', fullName: 'Duplicate Content' }
+        ];
+
+        // Check for concept patterns
+        for (const concept of courseConcepts) {
+            if (concept.pattern.test(question)) {
+                // Check if not already added
+                if (!detectedConcepts.some(c => c.name === concept.name)) {
+                    detectedConcepts.push({
+                        name: concept.name,
+                        fullName: concept.fullName
+                    });
+                }
+            }
+        }
+
+        // Also check for concept mentions in lowercase (for "how to do aeo" type queries)
+        const lowerQuestion = question.toLowerCase();
+        const lowercaseConcepts = [
+            { pattern: /aeo|answer engine optimization/, name: 'AEO', fullName: 'Answer Engine Optimization' },
+            { pattern: /e-e-a-t|eat|experience expertise authority trust/, name: 'E-E-A-T', fullName: 'Experience, Expertise, Authority, Trust' },
+            { pattern: /technical seo/, name: 'Technical SEO', fullName: 'Technical SEO' },
+            { pattern: /index bloat/, name: 'Index Bloat', fullName: 'Index Bloat' },
+            { pattern: /crawlability/, name: 'Crawlability', fullName: 'Crawlability' },
+            { pattern: /indexability/, name: 'Indexability', fullName: 'Indexability' },
+            { pattern: /crawl budget/, name: 'Crawl Budget', fullName: 'Crawl Budget' },
+            { pattern: /core web vitals/, name: 'Core Web Vitals', fullName: 'Core Web Vitals' }
+        ];
+
+        for (const concept of lowercaseConcepts) {
+            if (concept.pattern.test(lowerQuestion)) {
+                // Check if not already added
+                if (!detectedConcepts.some(c => c.name === concept.name)) {
+                    detectedConcepts.push({
+                        name: concept.name,
+                        fullName: concept.fullName
+                    });
+                }
+            }
+        }
+
+        return {
+            requiresCourseAnchoring: detectedConcepts.length > 0,
+            detectedConcepts: detectedConcepts,
+            conceptNames: detectedConcepts.map(c => c.name)
+        };
+    }
+
+    /**
      * Internal method for topic extraction
      * @private
      */
