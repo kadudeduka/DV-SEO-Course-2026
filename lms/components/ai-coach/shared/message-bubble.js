@@ -149,17 +149,23 @@ class MessageBubble {
         // Basic markdown: *italic*
         formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
 
-        // Numbered lists (1. item)
-        formatted = formatted.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
-        if (formatted.includes('<li>')) {
-            formatted = '<ol>' + formatted + '</ol>';
-        }
+        // Numbered lists (1. item) - handle multiple lists properly
+        formatted = formatted.replace(/(?:^|\n)(\d+\.\s+.+(?:\n\d+\.\s+.+)*)/gm, (match) => {
+            const items = match.trim().split(/\n(?=\d+\.\s+)/);
+            return '<ol>' + items.map(item => {
+                const content = item.replace(/^\d+\.\s+/, '').trim();
+                return '<li>' + content + '</li>';
+            }).join('') + '</ol>';
+        });
 
-        // Bullet lists (- item)
-        formatted = formatted.replace(/^-\s+(.+)$/gm, '<li>$1</li>');
-        if (formatted.includes('<li>') && !formatted.includes('<ol>')) {
-            formatted = '<ul>' + formatted + '</ul>';
-        }
+        // Bullet lists (- item or * item) - handle multiple lists properly
+        formatted = formatted.replace(/(?:^|\n)([-*]\s+.+(?:\n[-*]\s+.+)*)/gm, (match) => {
+            const items = match.trim().split(/\n(?=[-*]\s+)/);
+            return '<ul>' + items.map(item => {
+                const content = item.replace(/^[-*]\s+/, '').trim();
+                return '<li>' + content + '</li>';
+            }).join('') + '</ul>';
+        });
 
         return formatted;
     }

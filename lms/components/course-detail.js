@@ -55,10 +55,16 @@ class CourseDetail {
             const { default: AICoachWidget } = await import('./ai-coach/learner/ai-coach-widget.js');
             if (!window.aiCoachWidgetInstance) {
                 window.aiCoachWidgetInstance = new AICoachWidget();
+                // Set course ID before init to ensure it's available
+                window.aiCoachWidgetInstance.currentCourseId = this.courseId;
                 await window.aiCoachWidgetInstance.init();
             } else {
                 // Update course context if widget already exists
                 window.aiCoachWidgetInstance.currentCourseId = this.courseId;
+                // Ensure container exists before rendering
+                if (!window.aiCoachWidgetInstance.container) {
+                    window.aiCoachWidgetInstance._createContainer();
+                }
                 await window.aiCoachWidgetInstance.render();
                 // Re-attach event listeners after re-rendering
                 window.aiCoachWidgetInstance.attachEventListeners();
@@ -163,6 +169,7 @@ class CourseDetail {
                             <a href="#/courses/${this.courseId}/learn" class="btn btn-primary btn-large">
                                 ${this.progressPercentage >= 100 ? 'Review Course' : this.progressPercentage > 0 ? 'Continue Learning' : 'Start Learning'}
                             </a>
+                            <a href="#/courses/${this.courseId}/coach/ai" class="btn btn-secondary btn-large">AI Coach</a>
                             <a href="#/courses/my-courses" class="btn btn-secondary btn-large">Back to My Courses</a>
                         </div>
                     </div>

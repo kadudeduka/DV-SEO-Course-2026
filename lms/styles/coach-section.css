@@ -105,10 +105,12 @@
     font-weight: 600;
     color: #111827;
     margin: 0 0 1rem 0;
+    line-height: 1.4;
 }
 
 .search-box {
     position: relative;
+    margin-top: 1rem;
 }
 
 .search-input {
@@ -432,6 +434,55 @@
     color: #374151;
     line-height: 1.7;
     white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.response-text p {
+    margin: 0 0 12px 0;
+    line-height: 1.7;
+}
+
+.response-text p:last-child {
+    margin-bottom: 0;
+}
+
+.response-text ul,
+.response-text ol {
+    margin: 12px 0;
+    padding-left: 24px;
+}
+
+.response-text li {
+    margin: 6px 0;
+    line-height: 1.7;
+}
+
+.response-text li ul,
+.response-text li ol {
+    margin: 6px 0;
+    padding-left: 20px;
+}
+
+.response-text pre {
+    background: #f3f4f6;
+    padding: 12px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 12px 0;
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+.response-text code {
+    background: #f3f4f6;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.response-text pre code {
+    background: transparent;
+    padding: 0;
 }
 
 .question-meta {

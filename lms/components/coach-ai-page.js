@@ -12,6 +12,7 @@
 import { queryHistoryService } from '../services/query-history-service.js';
 import { aiCoachService } from '../services/ai-coach-service.js';
 import { authService } from '../services/auth-service.js';
+import { courseService } from '../services/course-service.js';
 import { router } from '../core/router.js';
 import Header from './header.js';
 
@@ -19,6 +20,7 @@ class CoachAIPage {
     constructor(container) {
         this.container = container;
         this.courseId = null;
+        this.course = null;
         this.currentUser = null;
         this.queries = [];
         this.filteredQueries = [];
@@ -51,6 +53,9 @@ class CoachAIPage {
             return;
         }
 
+        // Load course data for title
+        await this.loadCourse();
+
         // Render header
         await this.renderHeader();
 
@@ -66,6 +71,21 @@ class CoachAIPage {
         // If queryId is provided in params, open that query
         if (params.queryId) {
             await this.selectQuery(params.queryId);
+        }
+    }
+
+    /**
+     * Load course data
+     */
+    async loadCourse() {
+        if (!this.courseId) {
+            return;
+        }
+        try {
+            this.course = await courseService.getCourseById(this.courseId);
+        } catch (error) {
+            console.warn('[CoachAIPage] Failed to load course:', error);
+            this.course = null;
         }
     }
 
@@ -88,7 +108,7 @@ class CoachAIPage {
             <div class="coach-page-container">
                 <!-- Page Header -->
                 <div class="coach-page-header">
-                    <h1>AI Coach</h1>
+                    <h1>AI Coach${this.course ? ` - ${this.course.title || this.courseId}` : ''}</h1>
                     <p class="page-subtitle">Ask questions and view your conversation history</p>
                 </div>
 
@@ -277,26 +297,56 @@ class CoachAIPage {
      * @param {string} queryId - Query ID
      */
     async selectQuery(queryId) {
+        if (!queryId) {
+            console.warn('[CoachAIPage] No queryId provided to selectQuery');
+            return;
+        }
+
         const query = this.queries.find(q => q.id === queryId);
         if (!query) {
             // Load full details
-            const fullQuery = await queryHistoryService.getQueryDetails(queryId, this.currentUser.id);
-            if (fullQuery) {
-                this.selectedQuery = fullQuery;
-                this.renderQueryDetail(fullQuery);
+            try {
+                const fullQuery = await queryHistoryService.getQueryDetails(queryId, this.currentUser.id);
+                if (fullQuery) {
+                    this.selectedQuery = fullQuery;
+                    this.renderQueryDetail(fullQuery);
+                    // Highlight the query in the list if it exists
+                    this._highlightQueryInList(queryId);
+                } else {
+                    console.warn('[CoachAIPage] Query not found:', queryId);
+                }
+            } catch (error) {
+                console.error('[CoachAIPage] Error loading query details:', error);
             }
         } else {
             this.selectedQuery = query;
             this.renderQueryDetail(query);
+            // Highlight the query in the list
+            this._highlightQueryInList(queryId);
+        }
+    }
+
+    /**
+     * Highlight a query in the list and scroll to it
+     * @param {string} queryId - Query ID
+     * @private
+     */
+    _highlightQueryInList(queryId) {
+        const listContainer = document.getElementById('query-list-container');
+        if (!listContainer) {
+            return;
         }
 
-        // Update active state in list
-        const listContainer = document.getElementById('query-list-container');
-        if (listContainer) {
-            const items = listContainer.querySelectorAll('.query-item');
-            items.forEach(item => {
-                item.classList.toggle('active', item.dataset.queryId === queryId);
-            });
+        // Remove active class from all items
+        const allItems = listContainer.querySelectorAll('.query-item');
+        allItems.forEach(item => item.classList.remove('active'));
+
+        // Add active class to selected item and scroll to it
+        const selectedItem = listContainer.querySelector(`[data-query-id="${queryId}"]`);
+        if (selectedItem) {
+            selectedItem.classList.add('active');
+            // Scroll to the item smoothly
+            selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
 

@@ -101,16 +101,19 @@ class AICoachWidget {
             return;
         }
 
+        // Create widget container if it doesn't exist (do this before validation checks)
+        this._createContainer();
+
         // Check if we're on a valid course learning page
         if (!this._isValidCoursePage()) {
+            // Still create container, but don't proceed with initialization
             return;
         }
 
-        // Detect current course from page context
-        this.currentCourseId = this._detectCurrentCourse();
-
-        // Create widget container if it doesn't exist
-        this._createContainer();
+        // Detect current course from page context (if not already set)
+        if (!this.currentCourseId) {
+            this.currentCourseId = this._detectCurrentCourse();
+        }
 
         // Load conversation history FIRST (before rendering)
         // This ensures messages are available when widget is rendered
@@ -386,10 +389,22 @@ class AICoachWidget {
      * Attach event listeners
      */
     attachEventListeners() {
+        // View Coach Section button (back arrow)
+        const viewCoachSectionBtn = document.getElementById('view-coach-section-btn');
+        if (viewCoachSectionBtn) {
+            viewCoachSectionBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent header click event
+                this._navigateToCoachSection();
+            });
+        }
+
         // Minimize button
         const minimizeBtn = document.getElementById('minimize-btn');
         if (minimizeBtn) {
-            minimizeBtn.addEventListener('click', () => this.toggleMinimize());
+            minimizeBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent header click event
+                this.toggleMinimize();
+            });
         }
 
         // Header click to expand
