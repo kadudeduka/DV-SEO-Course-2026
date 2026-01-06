@@ -228,17 +228,43 @@
 .message-content {
     margin-bottom: 8px;
     line-height: 1.6;
-    white-space: pre-wrap;
     word-wrap: break-word;
 }
 
 .message-content p {
-    margin: 0 0 12px 0;
+    margin: 0 0 16px 0;
     line-height: 1.6;
 }
 
 .message-content p:last-child {
     margin-bottom: 0;
+}
+
+.message-content h1,
+.message-content h2,
+.message-content h3 {
+    margin: 20px 0 12px 0;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #111827;
+}
+
+.message-content h1 {
+    font-size: 1.5rem;
+}
+
+.message-content h2 {
+    font-size: 1.25rem;
+}
+
+.message-content h3 {
+    font-size: 1.1rem;
+}
+
+.message-content h1:first-child,
+.message-content h2:first-child,
+.message-content h3:first-child {
+    margin-top: 0;
 }
 
 .message-content ul,

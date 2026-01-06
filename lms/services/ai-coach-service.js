@@ -1095,6 +1095,29 @@ class AICoachService {
                 }
             );
 
+            // 13a. Replace "Direct Answer:" with coach name
+            let finalAnswer = answerResult.answer;
+            if (finalAnswer) {
+                // Get coach name for personalization
+                let coachName = 'AI Coach'; // Default fallback
+                try {
+                    const { trainerPersonalizationService } = await import('../services/trainer-personalization-service.js');
+                    const personalization = await trainerPersonalizationService.getPersonalizationForCourse(courseId, learnerId);
+                    if (personalization && personalization.coachName) {
+                        coachName = personalization.coachName;
+                    }
+                } catch (error) {
+                    console.warn('[AICoachService] Could not get coach name, using default:', error);
+                }
+
+                // Replace "Direct Answer:" or "Direct Answer" at the start with coach name
+                finalAnswer = finalAnswer.replace(/^Direct Answer:\s*/i, `${coachName}: `);
+                finalAnswer = finalAnswer.replace(/^Direct Answer\s*/i, `${coachName}: `);
+                
+                // Also handle if it appears after a newline (less common but possible)
+                finalAnswer = finalAnswer.replace(/\nDirect Answer:\s*/gi, `\n${coachName}: `);
+            }
+
             // 14. Assemble references from validated chunks ONLY (SYSTEM-OWNED, not LLM-generated)
             // CRITICAL: References come ONLY from validated chunks, never from LLM output
             let references = [];
@@ -1187,7 +1210,7 @@ class AICoachService {
             let adjustedConfidence = await llmService.estimateConfidence(
                 processedQuestion,
                 selectedChunks,
-                answerResult.answer,
+                finalAnswer,
                 adjustmentFactors
             );
             
@@ -1263,7 +1286,7 @@ class AICoachService {
                 
                 responseId = await this._storeResponse(
                     queryId,
-                    answerResult,
+                    { ...answerResult, answer: finalAnswer }, // Use finalAnswer with coach name
                     references,
                     isLabGuidance
                 );
@@ -1391,7 +1414,7 @@ class AICoachService {
                 success: true,
                 queryId,
                 responseId,
-                answer: answerResult.answer, // Already stripped of LLM references
+                answer: finalAnswer, // Already stripped of LLM references and formatted with coach name
                 references: finalReferences, // System-assembled references only
                 confidence: adjustedConfidence,
                 nextSteps: this._generateNextSteps(selectedChunks, fullContext.progressContext),

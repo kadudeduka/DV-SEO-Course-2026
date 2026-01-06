@@ -134,24 +134,32 @@ class MessageBubble {
     static _formatText(text) {
         if (!text) return '';
 
-        // Escape HTML
+        // Escape HTML first
         let formatted = text
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
-        // Convert line breaks
-        formatted = formatted.replace(/\n/g, '<br>');
+        // Convert markdown headers (### Header) to HTML headers
+        formatted = formatted.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+        formatted = formatted.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+        formatted = formatted.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+
+        // Split into paragraphs (double newlines or after headers)
+        // First, mark paragraph boundaries
+        formatted = formatted.replace(/\n\n+/g, '<PARAGRAPH_BREAK>');
+        formatted = formatted.replace(/\n(?=<h[1-3])/g, '<PARAGRAPH_BREAK>');
+        formatted = formatted.replace(/(<\/h[1-3]>)\n/g, '$1<PARAGRAPH_BREAK>');
 
         // Basic markdown: **bold**
         formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
-        // Basic markdown: *italic*
-        formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+        // Basic markdown: *italic* (but not list markers)
+        formatted = formatted.replace(/(?<!^[-*]\s)\*(.*?)\*(?!\s)/g, '<em>$1</em>');
 
         // Numbered lists (1. item) - handle multiple lists properly
-        formatted = formatted.replace(/(?:^|\n)(\d+\.\s+.+(?:\n\d+\.\s+.+)*)/gm, (match) => {
-            const items = match.trim().split(/\n(?=\d+\.\s+)/);
+        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>)(\d+\.\s+.+(?:\n\d+\.\s+.+)*)/gm, (match, listContent) => {
+            const items = listContent.trim().split(/\n(?=\d+\.\s+)/);
             return '<ol>' + items.map(item => {
                 const content = item.replace(/^\d+\.\s+/, '').trim();
                 return '<li>' + content + '</li>';
@@ -159,13 +167,32 @@ class MessageBubble {
         });
 
         // Bullet lists (- item or * item) - handle multiple lists properly
-        formatted = formatted.replace(/(?:^|\n)([-*]\s+.+(?:\n[-*]\s+.+)*)/gm, (match) => {
-            const items = match.trim().split(/\n(?=[-*]\s+)/);
+        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>)([-*]\s+.+(?:\n[-*]\s+.+)*)/gm, (match, listContent) => {
+            const items = listContent.trim().split(/\n(?=[-*]\s+)/);
             return '<ul>' + items.map(item => {
                 const content = item.replace(/^[-*]\s+/, '').trim();
                 return '<li>' + content + '</li>';
             }).join('') + '</ul>';
         });
+
+        // Convert paragraph breaks to actual paragraphs
+        // Split by paragraph breaks and wrap each section
+        const sections = formatted.split('<PARAGRAPH_BREAK>');
+        formatted = sections.map(section => {
+            const trimmed = section.trim();
+            if (!trimmed) return '';
+            
+            // Don't wrap if it's already a header, list, or empty
+            if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<ol')) {
+                return trimmed;
+            }
+            
+            // Wrap in paragraph tag
+            return '<p>' + trimmed + '</p>';
+        }).filter(s => s).join('');
+
+        // Clean up any remaining line breaks (convert single \n to space within paragraphs)
+        formatted = formatted.replace(/(?<!<\/p>)\n(?!<[puloh])/g, ' ');
 
         return formatted;
     }

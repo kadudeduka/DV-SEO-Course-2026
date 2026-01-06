@@ -115,11 +115,12 @@
 
 .search-input {
     width: 100%;
-    padding: 0.75rem 2.5rem 0.75rem 1rem;
+    padding: 0.75rem 2.75rem 0.75rem 1rem;
     border: 1px solid #d1d5db;
     border-radius: 6px;
     font-size: 0.9rem;
     transition: border-color 0.2s;
+    box-sizing: border-box;
 }
 
 .search-input:focus {
@@ -130,11 +131,13 @@
 
 .search-icon {
     position: absolute;
-    right: 0.75rem;
+    right: 0.875rem;
     top: 50%;
     transform: translateY(-50%);
     color: #9ca3af;
     pointer-events: none;
+    font-size: 1rem;
+    z-index: 1;
 }
 
 /* Filter Tabs */

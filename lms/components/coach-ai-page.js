@@ -117,7 +117,6 @@ class CoachAIPage {
                     <!-- Left Sidebar: Query List -->
                     <div class="coach-sidebar">
                         <div class="sidebar-header">
-                            <h2>Your Questions</h2>
                             <div class="search-box">
                                 <input 
                                     type="text" 
