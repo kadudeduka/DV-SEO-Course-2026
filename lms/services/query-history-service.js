@@ -37,7 +37,7 @@ class QueryHistoryService {
                         id,
                         answer,
                         confidence_score,
-                        references,
+                        reference_locations,
                         created_at
                     )
                 `)
@@ -68,7 +68,7 @@ class QueryHistoryService {
                     id: response.id,
                     answer: response.answer,
                     confidenceScore: response.confidence_score,
-                    references: response.references,
+                    references: response.reference_locations || [], // Use correct column name
                     createdAt: response.created_at
                 }))
             }));
@@ -99,7 +99,7 @@ class QueryHistoryService {
                         id,
                         answer,
                         confidence_score,
-                        references,
+                        reference_locations,
                         created_at
                     )
                 `)
@@ -120,7 +120,10 @@ class QueryHistoryService {
                 createdAt: query.created_at,
                 hasResponse: query.responses && query.responses.length > 0,
                 latestResponse: query.responses && query.responses.length > 0 
-                    ? query.responses[0] 
+                    ? {
+                        ...query.responses[0],
+                        references: query.responses[0].reference_locations || [] // Use correct column name
+                    }
                     : null
             }));
         } catch (error) {
@@ -150,7 +153,7 @@ class QueryHistoryService {
                         id,
                         answer,
                         confidence_score,
-                        references,
+                        reference_locations,
                         is_lab_guidance,
                         tokens_used,
                         model_used,
@@ -180,7 +183,7 @@ class QueryHistoryService {
                     id: response.id,
                     answer: response.answer,
                     confidenceScore: response.confidence_score,
-                    references: response.references,
+                    references: response.reference_locations || [], // Use correct column name
                     isLabGuidance: response.is_lab_guidance,
                     tokensUsed: response.tokens_used,
                     modelUsed: response.model_used,

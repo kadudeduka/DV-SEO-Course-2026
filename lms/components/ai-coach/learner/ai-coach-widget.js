@@ -257,6 +257,11 @@ class AICoachWidget {
                         ${this.currentCourseId ? `<div class="course-indicator">${this._getCourseName()}</div>` : ''}
                     </div>
                     <div class="ai-coach-widget-controls">
+                        <button id="view-coach-section-btn" class="btn-view-coach" aria-label="View in Coach Section" title="View in Coach Section">
+                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M8 2L2 8L8 14M2 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
                         <button id="minimize-btn" aria-label="Minimize">−</button>
                     </div>
                 </div>
@@ -611,6 +616,7 @@ class AICoachWidget {
                     isLabGuidance: response.isLabGuidance,
                     escalated: response.escalated,
                     escalationId: response.escalationId,
+                    queryId: response.queryId, // Store query ID for expand button
                     timestamp: new Date().toISOString()
                 };
                 this.messages.push(aiMessage);
@@ -730,6 +736,7 @@ class AICoachWidget {
                         answer: query.latestResponse.answer,
                         references: query.latestResponse.references || [],
                         confidence: query.latestResponse.confidence_score,
+                        queryId: query.id, // Store query ID for expand button
                         timestamp: query.latestResponse.created_at
                     });
                     existingMessageIds.add(query.latestResponse.id);
@@ -1032,6 +1039,23 @@ class AICoachWidget {
         if (messagesArea) {
             messagesArea.scrollTop = messagesArea.scrollHeight;
         }
+    }
+
+    /**
+     * Navigate to Coach Section
+     * @param {string} queryId - Optional query ID to open specific query
+     */
+    _navigateToCoachSection(queryId = null) {
+        if (!this.currentCourseId) {
+            console.warn('[AICoachWidget] Cannot navigate to Coach Section: no course ID');
+            return;
+        }
+
+        const coachRoute = queryId 
+            ? `#/courses/${this.currentCourseId}/coach/ai?queryId=${queryId}`
+            : `#/courses/${this.currentCourseId}/coach/ai`;
+        
+        window.location.hash = coachRoute;
     }
 }
 

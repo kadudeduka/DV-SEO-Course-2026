@@ -77,8 +77,10 @@ class ContextBuilderService {
      * @returns {Promise<Object>} Progress context
      */
     async getProgressContext(learnerId, courseId) {
-        // Get completed chapters
-        const { data: completedChapters } = await supabaseClient
+        // Get completed chapters (with error handling)
+        let completedChapters = [];
+        try {
+            const { data, error } = await supabaseClient
             .from('user_progress')
             .select('content_id, day, chapter_id')
             .eq('user_id', learnerId)
@@ -86,8 +88,19 @@ class ContextBuilderService {
             .eq('content_type', 'chapter')
             .not('completed_at', 'is', null);
 
-        // Get in-progress chapters (accessed but not completed)
-        const { data: inProgressChapters } = await supabaseClient
+            if (error) {
+                console.warn('[ContextBuilder] Error fetching completed chapters:', error);
+            } else {
+                completedChapters = data || [];
+            }
+        } catch (error) {
+            console.warn('[ContextBuilder] Exception fetching completed chapters:', error);
+        }
+
+        // Get in-progress chapters (accessed but not completed) (with error handling)
+        let inProgressChapters = [];
+        try {
+            const { data, error } = await supabaseClient
             .from('user_progress')
             .select('content_id, day, chapter_id')
             .eq('user_id', learnerId)
@@ -96,16 +109,36 @@ class ContextBuilderService {
             .is('completed_at', null)
             .not('last_accessed_at', 'is', null);
 
-        // Get submitted labs
-        const { data: submittedLabs } = await supabaseClient
+            if (error) {
+                console.warn('[ContextBuilder] Error fetching in-progress chapters:', error);
+            } else {
+                inProgressChapters = data || [];
+            }
+        } catch (error) {
+            console.warn('[ContextBuilder] Exception fetching in-progress chapters:', error);
+        }
+
+        // Get submitted labs (with error handling)
+        let submittedLabs = [];
+        try {
+            const { data, error } = await supabaseClient
             .from('lab_submissions')
             .select('lab_id, day')
             .eq('user_id', learnerId)
             .eq('course_id', courseId);
+            
+            if (error) {
+                console.warn('[ContextBuilder] Error fetching submitted labs:', error);
+            } else {
+                submittedLabs = data || [];
+            }
+        } catch (error) {
+            console.warn('[ContextBuilder] Exception fetching submitted labs:', error);
+        }
 
         return {
-            completedChapters: (completedChapters || []).map(c => c.content_id || c.chapter_id),
-            inProgressChapters: (inProgressChapters || []).map(c => c.content_id || c.chapter_id),
+            completedChapters: completedChapters.map(c => c.content_id || c.chapter_id),
+            inProgressChapters: inProgressChapters.map(c => c.content_id || c.chapter_id),
             submittedLabs: (submittedLabs || []).map(l => l.lab_id),
             completedDays: [...new Set((completedChapters || []).map(c => c.day).filter(Boolean))]
         };
@@ -587,7 +620,7 @@ class ContextBuilderService {
         // Phase 1: Separate dedicated chapters from others
         const dedicatedChunks = [];
         const otherChunks = [];
-        
+
         for (const chunk of chunks) {
             const isDedicated = chunk.is_dedicated_topic_chapter || 
                                chunk.metadata?.is_dedicated_topic_chapter ||
@@ -611,10 +644,10 @@ class ContextBuilderService {
                 // Calculate token count
                 let chunkTokens = chunk.token_count;
                 
-                if (!chunkTokens || chunkTokens === 0 || isNaN(chunkTokens)) {
-                    const contentLength = chunk.content?.length || 0;
-                    if (contentLength > 0) {
-                        chunkTokens = Math.ceil(contentLength / 4);
+            if (!chunkTokens || chunkTokens === 0 || isNaN(chunkTokens)) {
+                const contentLength = chunk.content?.length || 0;
+                if (contentLength > 0) {
+                    chunkTokens = Math.ceil(contentLength / 4);
                     } else {
                         chunkTokens = 200;
                     }
@@ -660,16 +693,16 @@ class ContextBuilderService {
                     const contentLength = chunk.content?.length || 0;
                     chunkTokens = contentLength > 0 ? Math.ceil(contentLength / 4) : 200;
                 }
-                if (isNaN(chunkTokens) || chunkTokens <= 0) {
+            if (isNaN(chunkTokens) || chunkTokens <= 0) {
                     chunkTokens = 200;
                 }
                 
-                if (totalTokens + chunkTokens <= maxTokens) {
-                    selected.push(chunk);
-                    totalTokens += chunkTokens;
-                } else {
-                    break;
-                }
+            if (totalTokens + chunkTokens <= maxTokens) {
+                selected.push(chunk);
+                totalTokens += chunkTokens;
+            } else {
+                break;
+            }
             }
         }
         

@@ -159,11 +159,28 @@ class Router {
     parseRoute(hash) {
         // Normalize hash: remove leading/trailing slashes, remove any # characters, and handle empty hash
         // Remove all # characters and leading/trailing slashes
-        const normalizedHash = hash.replace(/#/g, '').replace(/^\/+|\/+$/g, '') || '';
+        let normalizedHash = hash.replace(/#/g, '').replace(/^\/+|\/+$/g, '') || '';
+        
+        // Extract query parameters (e.g., ?queryId=123)
+        const queryParams = {};
+        const queryIndex = normalizedHash.indexOf('?');
+        if (queryIndex !== -1) {
+            const queryString = normalizedHash.substring(queryIndex + 1);
+            normalizedHash = normalizedHash.substring(0, queryIndex);
+            
+            // Parse query string
+            queryString.split('&').forEach(param => {
+                const [key, value] = param.split('=');
+                if (key && value) {
+                    queryParams[decodeURIComponent(key)] = decodeURIComponent(value);
+                }
+            });
+        }
+        
         const parts = normalizedHash.split('/').filter(part => part.length > 0);
         
         if (parts.length === 0) {
-            return { path: '/', params: {} };
+            return { path: '/', params: {}, query: queryParams };
         }
 
         const path = '/' + parts.join('/');
@@ -187,12 +204,13 @@ class Router {
                     path: match.path,
                     pattern: pattern,
                     params: match.params,
+                    query: queryParams,
                     handler: handler
                 };
             }
         }
 
-        return { path: path, params: {} };
+        return { path: path, params: {}, query: queryParams };
     }
 
     /**

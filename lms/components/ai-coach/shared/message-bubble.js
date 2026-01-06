@@ -104,6 +104,17 @@ class MessageBubble {
             container.appendChild(feedbackEl);
         }
 
+        // Expand button for long answers (for AI messages)
+        if (type === 'ai' && message.answer) {
+            const answerLength = message.answer.length;
+            const isLongAnswer = answerLength > 500; // Consider answers > 500 chars as "long"
+            
+            if (isLongAnswer) {
+                const expandBtn = this._renderExpandButton(message.id || container.getAttribute('data-message-id'), message.queryId);
+                container.appendChild(expandBtn);
+            }
+        }
+
         // Timestamp
         if (showTimestamp && message.timestamp) {
             const timestampEl = document.createElement('div');
@@ -198,6 +209,68 @@ class MessageBubble {
             const feedbackEl = messageEl.querySelector('.message-feedback');
             if (feedbackEl) {
                 feedbackEl.innerHTML = `<span class="feedback-thanks">Thanks for your feedback!</span>`;
+            }
+        }
+    }
+
+    /**
+     * Render expand button for long answers
+     * @param {string} messageId - Message ID
+     * @param {string} queryId - Query ID (optional, for navigation)
+     * @returns {HTMLElement} Expand button element
+     */
+    static _renderExpandButton(messageId, queryId = null) {
+        const expandBtn = document.createElement('button');
+        expandBtn.className = 'btn-expand-view';
+        expandBtn.setAttribute('aria-label', 'Expand view in Coach Section');
+        expandBtn.innerHTML = `
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M10 4L14 0M14 0H10M14 0V4M4 14L0 10M0 10H4M0 10V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            <span>Expand in Coach Section</span>
+        `;
+        
+        expandBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this._handleExpandClick(messageId, queryId);
+        });
+        
+        return expandBtn;
+    }
+
+    /**
+     * Handle expand button click
+     * @param {string} messageId - Message ID
+     * @param {string} queryId - Query ID
+     */
+    static _handleExpandClick(messageId, queryId) {
+        // Navigate to Coach Section with query ID
+        const router = window.router || (window.location.hash ? null : null);
+        
+        if (queryId) {
+            // Navigate to coach section with specific query
+            const currentHash = window.location.hash.slice(1);
+            const courseMatch = currentHash.match(/\/courses\/([^\/]+)/);
+            const courseId = courseMatch ? courseMatch[1] : null;
+            
+            if (courseId) {
+                const coachRoute = `#/courses/${courseId}/coach/ai?queryId=${queryId}`;
+                window.location.hash = coachRoute;
+            } else {
+                // Fallback: navigate to coach section without query
+                const coachRoute = `#/coach/ai${queryId ? `?queryId=${queryId}` : ''}`;
+                window.location.hash = coachRoute;
+            }
+        } else {
+            // Navigate to coach section without specific query
+            const currentHash = window.location.hash.slice(1);
+            const courseMatch = currentHash.match(/\/courses\/([^\/]+)/);
+            const courseId = courseMatch ? courseMatch[1] : null;
+            
+            if (courseId) {
+                window.location.hash = `#/courses/${courseId}/coach/ai`;
+            } else {
+                window.location.hash = '#/coach/ai';
             }
         }
     }

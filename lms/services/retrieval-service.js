@@ -226,8 +226,20 @@ class RetrievalService {
      * @returns {Promise<Array<Object>>} Array of relevant chunks
      */
     async hybridSearch(query, courseId, filters = {}, limit = 5) {
-        // Generate query embedding
-        const queryEmbedding = await llmService.generateEmbedding(query);
+        // Generate query embedding (with timeout protection)
+        let queryEmbedding;
+        try {
+            const embeddingPromise = llmService.generateEmbedding(query);
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Embedding generation timed out after 20 seconds')), 20000);
+            });
+            queryEmbedding = await Promise.race([embeddingPromise, timeoutPromise]);
+        } catch (error) {
+            console.error('[RetrievalService] Error generating embedding:', error);
+            // If embedding fails, fall back to keyword-only search
+            console.warn('[RetrievalService] Falling back to keyword-only search due to embedding error');
+            return await this.keywordSearch(query, courseId, filters, limit);
+        }
 
         // Increase search limit to ensure we find dedicated chapters even if they score slightly lower
         // This helps ensure comprehensive/dedicated chapters are included in results

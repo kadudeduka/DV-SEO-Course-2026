@@ -14,7 +14,6 @@ import { aiCoachService } from '../services/ai-coach-service.js';
 import { authService } from '../services/auth-service.js';
 import { router } from '../core/router.js';
 import Header from './header.js';
-import CourseNavigationTabs from './course-navigation-tabs.js';
 
 class CoachAIPage {
     constructor(container) {
@@ -33,8 +32,9 @@ class CoachAIPage {
     /**
      * Show Coach-AI page
      * @param {string} courseId - Course ID
+     * @param {Object} params - URL parameters (e.g., { queryId: '...' })
      */
-    async show(courseId) {
+    async show(courseId, params = {}) {
         this.courseId = courseId;
         
         if (!this.container) {
@@ -57,8 +57,16 @@ class CoachAIPage {
         // Render page
         await this.render();
 
+        // Attach event listeners
+        this.attachEventListeners();
+
         // Load query history
         await this.loadQueryHistory();
+
+        // If queryId is provided in params, open that query
+        if (params.queryId) {
+            await this.selectQuery(params.queryId);
+        }
     }
 
     /**
@@ -78,9 +86,6 @@ class CoachAIPage {
     async render() {
         this.container.innerHTML = `
             <div class="coach-page-container">
-                <!-- Course Navigation Tabs -->
-                <div id="course-nav-tabs-container"></div>
-
                 <!-- Page Header -->
                 <div class="coach-page-header">
                     <h1>AI Coach</h1>
@@ -131,39 +136,8 @@ class CoachAIPage {
             </div>
         `;
 
-        // Render navigation tabs
-        await this.renderNavigationTabs();
-
         // Attach event listeners
         this.attachEventListeners();
-    }
-
-    /**
-     * Render navigation tabs
-     */
-    async renderNavigationTabs() {
-        const tabsContainer = document.getElementById('course-nav-tabs-container');
-        if (tabsContainer) {
-            const navTabs = new CourseNavigationTabs(tabsContainer, this.courseId);
-            await navTabs.render('coach');
-            navTabs.setTabChangeCallback((tabName) => {
-                this.handleTabChange(tabName);
-            });
-        }
-    }
-
-    /**
-     * Handle tab change
-     * @param {string} tabName - Tab name
-     */
-    handleTabChange(tabName) {
-        if (tabName === 'overview') {
-            router.navigate(`/courses/${this.courseId}`);
-        } else if (tabName === 'content') {
-            router.navigate(`/courses/${this.courseId}/learn`);
-        } else if (tabName === 'coach') {
-            // Already on coach tab
-        }
     }
 
     /**

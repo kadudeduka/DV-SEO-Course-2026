@@ -380,13 +380,27 @@ class AICoachService {
                 }
             } else {
                 // No specific references, use hybrid search
-                similarChunks = await retrievalService.hybridSearch(
-                    processedQuestion,
-                    courseId,
-                    searchFilters,
-                    20
-            );
-            console.log(`[AICoachService] Hybrid search found ${similarChunks.length} chunks`);
+                try {
+                    logStep('Before Hybrid Search');
+                    // Add timeout protection for hybrid search (30 seconds)
+                    const hybridSearchPromise = retrievalService.hybridSearch(
+                        processedQuestion,
+                        courseId,
+                        searchFilters,
+                        20
+                    );
+                    const timeoutPromise = new Promise((_, reject) => {
+                        setTimeout(() => reject(new Error('Hybrid search timed out after 30 seconds')), 30000);
+                    });
+                    similarChunks = await Promise.race([hybridSearchPromise, timeoutPromise]);
+                    logStep('After Hybrid Search');
+                    console.log(`[AICoachService] Hybrid search found ${similarChunks.length} chunks`);
+                } catch (error) {
+                    console.error('[AICoachService] Error in hybrid search:', error);
+                    similarChunks = []; // Fall back to empty array
+                    logStep('Hybrid Search Failed');
+                    // Continue with empty chunks - dedicated chapters might still be available
+                }
             }
             
             // STEP 3: Merge dedicated chapters with regular search results

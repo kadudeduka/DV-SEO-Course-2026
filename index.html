@@ -970,7 +970,9 @@
             try {
                 const { default: CoachAIPage } = await import('./lms/components/coach-ai-page.js');
                 const coachPage = new CoachAIPage(container);
-                await coachPage.show(route.params.id);
+                // Pass query parameters (e.g., queryId) to the page
+                const params = route.query || {};
+                await coachPage.show(route.params.id, params);
             } catch (error) {
                 console.error('[Router] Error loading Coach-AI page:', error);
                 container.innerHTML = `
