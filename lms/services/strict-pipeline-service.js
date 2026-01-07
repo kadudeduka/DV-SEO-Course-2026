@@ -17,6 +17,9 @@ import { supabaseClient } from './supabase-client.js';
 import { queryNormalizerService } from './query-normalizer-service.js';
 import { conceptExpansionService } from './concept-expansion-service.js';
 import { answerRendererService } from './answer-renderer-service.js';
+import { courseStructureService } from './course-structure-service.js';
+import { courseNavigationService } from './course-navigation-service.js';
+import { coursePlanningService } from './course-planning-service.js';
 
 class StrictPipelineService {
     constructor() {
@@ -673,6 +676,30 @@ Instructions:
             console.log('[StrictPipeline] Step 0: Query Normalization');
             const normalized = await this.normalizeQuery(question, options.debug);
             
+            // Check query category and route accordingly
+            const queryCategory = normalized.query_category || 'content';
+            console.log(`[StrictPipeline] Query category: ${queryCategory}`);
+            
+            // Route non-content queries to appropriate handlers
+            if (queryCategory === 'structural') {
+                return await this._handleStructuralQuery(normalized, courseId, options);
+            }
+            
+            if (queryCategory === 'navigation') {
+                return await this._handleNavigationQuery(normalized, courseId, options);
+            }
+            
+            if (queryCategory === 'planning') {
+                return await this._handlePlanningQuery(normalized, courseId, options);
+            }
+            
+            if (queryCategory === 'lab_guidance') {
+                // Lab guidance is handled by existing system, but we can enhance it
+                // For now, fall through to content pipeline (lab guidance system should handle it)
+                console.log('[StrictPipeline] Lab guidance query - using content pipeline');
+            }
+            
+            // Content queries: Continue with existing pipeline
             // Fail safely if no concepts found (no silent fallbacks)
             if (!normalized || !normalized.key_concepts || normalized.key_concepts.length === 0) {
                 console.error('[StrictPipeline] Query normalization failed: No concepts extracted');
@@ -758,7 +785,9 @@ Instructions:
             
             return {
                 success: true,
-                ...step2Result
+                ...step2Result,
+                query_category: queryCategory, // Include category in response
+                normalized_data: normalized // Include normalized data for escalation logic
             };
             
         } catch (error) {
@@ -769,6 +798,305 @@ Instructions:
                 references: [],
                 confidence: 0.0,
                 source: 'error',
+                has_references: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Handle structural queries
+     * @param {Object} normalized - Normalized query data
+     * @param {string} courseId - Course ID
+     * @param {Object} options - Additional options
+     * @returns {Promise<Object>} Response object
+     * @private
+     */
+    async _handleStructuralQuery(normalized, courseId, options = {}) {
+        console.log('[StrictPipeline] Handling structural query');
+        
+        try {
+            const additionalInfo = normalized.additional_info || {};
+            const structuralElement = additionalInfo.structural_element || 'general';
+            
+            let answer = '';
+            
+            if (structuralElement === 'chapters' || normalized.normalized_question.toLowerCase().includes('chapter')) {
+                const totalChapters = await courseStructureService.getTotalChapters(courseId);
+                const structure = await courseStructureService.getCourseStructure(courseId);
+                
+                if (totalChapters !== null && structure) {
+                    answer = `📊 **Course Structure**\n\n`;
+                    answer += `This course contains **${totalChapters} chapters** organized across **${structure.total_days} days**.\n\n`;
+                    
+                    if (structure.days && structure.days.length > 0) {
+                        answer += `**Course Organization:**\n`;
+                        structure.days.forEach(day => {
+                            answer += `• **Day ${day.day}**: `;
+                            if (day.chapter_count > 0) {
+                                answer += `${day.chapter_count} chapter${day.chapter_count !== 1 ? 's' : ''}`;
+                            }
+                            if (day.chapter_count > 0 && day.lab_count > 0) {
+                                answer += `, `;
+                            }
+                            if (day.lab_count > 0) {
+                                answer += `${day.lab_count} lab${day.lab_count !== 1 ? 's' : ''}`;
+                            }
+                            // If day has no chapters or labs, show that
+                            if (day.chapter_count === 0 && day.lab_count === 0) {
+                                answer += `No content`;
+                            }
+                            answer += `\n`;
+                        });
+                    }
+                    
+                    answer += `\nWould you like to see a detailed breakdown of any specific section?`;
+                } else {
+                    answer = `I don't have access to the course structure information at the moment. Please check the course navigation menu or contact support.`;
+                }
+            } else if (structuralElement === 'labs' || normalized.normalized_question.toLowerCase().includes('lab')) {
+                const totalLabs = await courseStructureService.getTotalLabs(courseId);
+                
+                if (totalLabs !== null) {
+                    answer = `📊 **Course Structure**\n\n`;
+                    answer += `This course contains **${totalLabs} labs** for hands-on practice.\n\n`;
+                    answer += `Labs are designed to help you apply the concepts you learn in the chapters.`;
+                } else {
+                    answer = `I don't have access to the lab information at the moment. Please check the course navigation menu.`;
+                }
+            } else {
+                // General structure question
+                const structure = await courseStructureService.getCourseStructure(courseId);
+                
+                if (structure) {
+                    answer = `📊 **Course Structure Overview**\n\n`;
+                    answer += `• **Total Days**: ${structure.total_days}\n`;
+                    answer += `• **Total Chapters**: ${structure.total_chapters}\n`;
+                    answer += `• **Total Labs**: ${structure.total_labs}\n\n`;
+                    answer += `The course is organized into ${structure.total_days} days, with chapters and labs distributed throughout.`;
+                } else {
+                    answer = `I don't have access to the course structure information at the moment. Please check the course navigation menu.`;
+                }
+            }
+            
+            return {
+                success: true,
+                answer: answer,
+                references: [],
+                confidence: 1.0,
+                source: 'structural_query',
+                has_references: false,
+                query_category: 'structural'
+            };
+        } catch (error) {
+            console.error('[StrictPipeline] Error handling structural query:', error);
+            return {
+                success: false,
+                answer: "I encountered an error retrieving course structure information. Please try again or contact support.",
+                references: [],
+                confidence: 0.0,
+                source: 'structural_query_error',
+                has_references: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Handle navigation queries
+     * @param {Object} normalized - Normalized query data
+     * @param {string} courseId - Course ID
+     * @param {Object} options - Additional options
+     * @returns {Promise<Object>} Response object
+     * @private
+     */
+    async _handleNavigationQuery(normalized, courseId, options = {}) {
+        console.log('[StrictPipeline] Handling navigation query');
+        
+        try {
+            const additionalInfo = normalized.additional_info || {};
+            const chapterNumber = additionalInfo.chapter_number;
+            const navigationAction = additionalInfo.navigation_action || 'general';
+            
+            let answer = '';
+            
+            if (chapterNumber && navigationAction === 'skip') {
+                const skipAdvice = await courseNavigationService.canSkipChapter(courseId, chapterNumber);
+                
+                answer = `🧭 **Navigation Guidance**\n\n`;
+                answer += `**Chapter ${chapterNumber}${skipAdvice.chapter_title ? `: ${skipAdvice.chapter_title}` : ''}**\n\n`;
+                answer += `${skipAdvice.reason}\n\n`;
+                
+                if (skipAdvice.prerequisites && skipAdvice.prerequisites.length > 0) {
+                    answer += `**Prerequisites:**\n`;
+                    skipAdvice.prerequisites.slice(0, 5).forEach(prereq => {
+                        answer += `• Day ${prereq.day} → ${prereq.container_title || prereq.container_id}\n`;
+                    });
+                    answer += `\n`;
+                }
+                
+                if (skipAdvice.dependent_chapters && skipAdvice.dependent_chapters.length > 0) {
+                    answer += `**This chapter is important for:**\n`;
+                    skipAdvice.dependent_chapters.slice(0, 3).forEach(dep => {
+                        answer += `• Day ${dep.day} → ${dep.container_title || dep.container_id}\n`;
+                    });
+                    answer += `\n`;
+                }
+                
+                answer += `**Recommendation:** ${skipAdvice.recommendation}`;
+            } else if (chapterNumber) {
+                // General navigation question about a chapter
+                const prerequisites = await courseNavigationService.getPrerequisites(courseId, chapterNumber);
+                
+                answer = `🧭 **Navigation Guidance**\n\n`;
+                answer += `**Chapter ${chapterNumber}**\n\n`;
+                
+                if (prerequisites.length > 0) {
+                    answer += `**Before starting this chapter, you should complete:**\n`;
+                    prerequisites.slice(0, 5).forEach(prereq => {
+                        answer += `• Day ${prereq.day} → ${prereq.container_title || prereq.container_id}\n`;
+                    });
+                    answer += `\n`;
+                    answer += `This sequence ensures you have the necessary foundation for this chapter's concepts.`;
+                } else {
+                    answer += `This chapter appears to be a starting point. You can begin here!`;
+                }
+            } else {
+                // General navigation question
+                const learningPath = await courseNavigationService.getLearningPath(courseId);
+                
+                answer = `🧭 **Course Navigation**\n\n`;
+                answer += `The course follows a structured learning path:\n\n`;
+                
+                if (learningPath.length > 0) {
+                    learningPath.slice(0, 10).forEach((item, index) => {
+                        answer += `${index + 1}. Day ${item.day} → ${item.container_title || item.container_id}\n`;
+                    });
+                    if (learningPath.length > 10) {
+                        answer += `\n... and ${learningPath.length - 10} more chapters.\n`;
+                    }
+                }
+                
+                answer += `\nI recommend following the course sequence for the best learning experience.`;
+            }
+            
+            return {
+                success: true,
+                answer: answer,
+                references: [],
+                confidence: 1.0,
+                source: 'navigation_query',
+                has_references: false,
+                query_category: 'navigation'
+            };
+        } catch (error) {
+            console.error('[StrictPipeline] Error handling navigation query:', error);
+            return {
+                success: false,
+                answer: "I encountered an error providing navigation guidance. Please try again or contact your trainer.",
+                references: [],
+                confidence: 0.0,
+                source: 'navigation_query_error',
+                has_references: false,
+                error: error.message
+            };
+        }
+    }
+
+    /**
+     * Handle planning queries
+     * @param {Object} normalized - Normalized query data
+     * @param {string} courseId - Course ID
+     * @param {Object} options - Additional options
+     * @returns {Promise<Object>} Response object
+     * @private
+     */
+    async _handlePlanningQuery(normalized, courseId, options = {}) {
+        console.log('[StrictPipeline] Handling planning query');
+        
+        try {
+            const additionalInfo = normalized.additional_info || {};
+            const chapterNumber = additionalInfo.chapter_number;
+            const labNumber = additionalInfo.lab_number;
+            const planningQuestion = additionalInfo.planning_question || 'time_estimate';
+            
+            let answer = '';
+            
+            if (chapterNumber) {
+                const estimate = await coursePlanningService.getTimeEstimate(courseId, chapterNumber);
+                
+                answer = `⏱️ **Time Planning**\n\n`;
+                answer += `**Chapter ${chapterNumber}${estimate.chapter_title ? `: ${estimate.chapter_title}` : ''}**\n\n`;
+                answer += `**Estimated time to complete:**\n`;
+                answer += `• Reading: ${estimate.estimates.reading} minutes\n`;
+                answer += `• Exercises: ${estimate.estimates.exercises} minutes\n`;
+                answer += `• Quiz: ${estimate.estimates.quiz} minutes\n`;
+                answer += `• **Total: ${estimate.estimates.total} minutes (${Math.round(estimate.estimates.total / 60 * 10) / 10} hours)**\n\n`;
+                
+                if (estimate.note) {
+                    answer += `*${estimate.note}*\n\n`;
+                }
+                
+                answer += `**Tips for efficient learning:**\n`;
+                answer += `• Read actively and take notes (adds ~15 minutes but improves retention)\n`;
+                answer += `• Complete exercises immediately after reading\n`;
+                answer += `• Review key concepts before taking the quiz\n\n`;
+                answer += `Would you like time estimates for other chapters or help creating a study schedule?`;
+            } else if (labNumber) {
+                const estimate = await coursePlanningService.getLabTimeEstimate(courseId, labNumber);
+                
+                answer = `⏱️ **Time Planning**\n\n`;
+                answer += `**Lab ${labNumber}${estimate.lab_title ? `: ${estimate.lab_title}` : ''}**\n\n`;
+                answer += `**Estimated time to complete:**\n`;
+                answer += `• Completion: ${estimate.estimates.completion} minutes\n`;
+                answer += `• Review: ${estimate.estimates.review} minutes\n`;
+                answer += `• **Total: ${estimate.estimates.total} minutes (${Math.round(estimate.estimates.total / 60 * 10) / 10} hours)**\n\n`;
+                
+                if (estimate.note) {
+                    answer += `*${estimate.note}*\n\n`;
+                }
+            } else {
+                // Course duration question
+                const duration = await coursePlanningService.getCourseDuration(courseId);
+                
+                if (duration) {
+                    answer = `⏱️ **Course Planning**\n\n`;
+                    answer += `**Course Duration Overview**\n\n`;
+                    answer += `**Total course content:**\n`;
+                    answer += `• Chapters: ${duration.total_chapters} chapters (~${Math.round(duration.chapter_time_minutes / 60)} hours)\n`;
+                    answer += `• Labs: ${duration.total_labs} labs (~${Math.round(duration.lab_time_minutes / 60)} hours)\n`;
+                    answer += `• **Total: ${duration.total_hours} hours**\n\n`;
+                    
+                    answer += `**Recommended Schedule:**\n`;
+                    answer += `• **Full-time (8 hours/day)**: ${duration.schedules.full_time.days} days\n`;
+                    answer += `• **Part-time (4 hours/day)**: ${duration.schedules.part_time.days} days\n`;
+                    answer += `• **Weekend only (8 hours/weekend)**: ${duration.schedules.weekend_only.weeks} weeks\n\n`;
+                    
+                    answer += `**Flexible Learning:**\n`;
+                    answer += `You can complete the course at your own pace. The course is designed to be completed within 3 months, but you have access for the full duration.\n\n`;
+                    answer += `Would you like help creating a personalized study schedule?`;
+                } else {
+                    answer = `I don't have time estimates for this course at the moment. As a general guideline, most courses take 50-65 hours to complete. Would you like to check the course navigation for more details?`;
+                }
+            }
+            
+            return {
+                success: true,
+                answer: answer,
+                references: [],
+                confidence: 1.0,
+                source: 'planning_query',
+                has_references: false,
+                query_category: 'planning'
+            };
+        } catch (error) {
+            console.error('[StrictPipeline] Error handling planning query:', error);
+            return {
+                success: false,
+                answer: "I encountered an error providing time estimates. Please try again or contact support.",
+                references: [],
+                confidence: 0.0,
+                source: 'planning_query_error',
                 has_references: false,
                 error: error.message
             };

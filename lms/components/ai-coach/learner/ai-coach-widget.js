@@ -476,9 +476,15 @@ class AICoachWidget {
                 this.attachEventListeners();
                 await this.loadConversationHistory();
                 this.show(); // Ensure widget is visible on course pages
-            } else if (!this.isVisible) {
-                // Same course but widget was hidden - show it
-                this.show();
+            } else {
+                // Same course - refresh query history to show new questions
+                // This handles the case when user asks a question on AI Coach page and returns
+                await this.loadRecentQueries();
+                
+                if (!this.isVisible) {
+                    // Widget was hidden - show it
+                    this.show();
+                }
             }
         };
         window.addEventListener('hashchange', this._hashChangeHandler);
@@ -519,6 +525,25 @@ class AICoachWidget {
             this.handleFeedback(e.detail.messageId, e.detail.rating);
         };
         window.addEventListener('ai-coach-feedback', this._feedbackHandler);
+        
+        // Listen for visibility changes to refresh when page becomes visible again
+        this._visibilityChangeHandler = async () => {
+            if (document.visibilityState === 'visible' && this.isVisible && this._isValidCoursePage()) {
+                // Page became visible and widget is shown - refresh query history
+                // This handles cases where user switches tabs or returns to the page
+                await this.loadRecentQueries();
+            }
+        };
+        document.addEventListener('visibilitychange', this._visibilityChangeHandler);
+        
+        // Listen for focus events to refresh when window regains focus
+        this._focusHandler = async () => {
+            if (this.isVisible && this._isValidCoursePage()) {
+                // Window regained focus and widget is shown - refresh query history
+                await this.loadRecentQueries();
+            }
+        };
+        window.addEventListener('focus', this._focusHandler);
     }
 
     /**
@@ -1090,6 +1115,12 @@ class AICoachWidget {
         window.removeEventListener('hashchange', this._hashChangeHandler);
         window.removeEventListener('user-logged-out', this._logoutHandler);
         window.removeEventListener('ai-coach-feedback', this._feedbackHandler);
+        if (this._visibilityChangeHandler) {
+            document.removeEventListener('visibilitychange', this._visibilityChangeHandler);
+        }
+        if (this._focusHandler) {
+            window.removeEventListener('focus', this._focusHandler);
+        }
 
         // Remove widget from DOM
         if (this.container && this.container.parentNode) {

@@ -56,46 +56,6 @@ class MessageBubble {
 
         container.appendChild(contentEl);
 
-        // References (for AI messages)
-        if ((type === 'ai' || type === 'trainer') && message.references && message.references.length > 0) {
-            // Separate primary and secondary references
-            const primaryRefs = message.references.filter(r => r.is_primary === true);
-            const secondaryRefs = message.references.filter(r => r.is_primary !== true);
-            
-            // Render primary references first with indicator
-            if (primaryRefs.length > 0) {
-                const primaryRefsEl = document.createElement('div');
-                primaryRefsEl.className = 'message-references message-references-primary';
-                primaryRefs.forEach(ref => {
-                    const refEl = ReferenceLink.render(ref, { courseId });
-                    // Add primary indicator
-                    const primaryBadge = document.createElement('span');
-                    primaryBadge.className = 'reference-primary-badge';
-                    primaryBadge.textContent = 'Primary';
-                    primaryBadge.setAttribute('aria-label', 'Primary reference');
-                    refEl.insertBefore(primaryBadge, refEl.firstChild);
-                    primaryRefsEl.appendChild(refEl);
-                });
-                container.appendChild(primaryRefsEl);
-            }
-            
-            // Render secondary references
-            if (secondaryRefs.length > 0) {
-                const secondaryRefsEl = ReferenceLink.renderMultiple(secondaryRefs, { courseId });
-                secondaryRefsEl.className = 'message-references message-references-secondary';
-                container.appendChild(secondaryRefsEl);
-            }
-            
-            // Show disclaimer if required
-            const refWithDisclaimer = message.references.find(r => r.requires_disclaimer === true);
-            if (refWithDisclaimer && refWithDisclaimer.disclaimer) {
-                const disclaimerEl = document.createElement('div');
-                disclaimerEl.className = 'reference-disclaimer';
-                disclaimerEl.innerHTML = `⚠️ <em>${refWithDisclaimer.disclaimer}</em>`;
-                container.appendChild(disclaimerEl);
-            }
-        }
-
         // Confidence indicator (for AI messages with low confidence)
         if (type === 'ai' && showConfidence && message.confidence !== undefined) {
             const confidenceEl = ConfidenceIndicator.renderCompact(message.confidence);
@@ -111,33 +71,16 @@ class MessageBubble {
             container.appendChild(badgeEl);
         }
 
-        // Escalation button (for AI messages)
-        if (type === 'ai' && message.queryId) {
-            const escalationBtn = this._renderEscalationButton(message);
-            if (escalationBtn) {
-                container.appendChild(escalationBtn);
+        // Create unified footer section for AI messages
+        if (type === 'ai') {
+            const footerEl = this._renderMessageFooter(message, { courseId, showFeedback, showTimestamp });
+            if (footerEl) {
+                container.appendChild(footerEl);
             }
         }
 
-        // Feedback buttons (for AI messages)
-        if (type === 'ai' && showFeedback) {
-            const feedbackEl = this._renderFeedback(message.id || container.getAttribute('data-message-id'));
-            container.appendChild(feedbackEl);
-        }
-
-        // Expand button for long answers (for AI messages)
-        if (type === 'ai' && message.answer) {
-            const answerLength = message.answer.length;
-            const isLongAnswer = answerLength > 500; // Consider answers > 500 chars as "long"
-            
-            if (isLongAnswer) {
-                const expandBtn = this._renderExpandButton(message.id || container.getAttribute('data-message-id'), message.queryId);
-                container.appendChild(expandBtn);
-            }
-        }
-
-        // Timestamp
-        if (showTimestamp && message.timestamp) {
+        // Timestamp (for non-AI messages or if footer wasn't created)
+        if (type !== 'ai' && showTimestamp && message.timestamp) {
             const timestampEl = document.createElement('div');
             timestampEl.className = 'message-timestamp';
             timestampEl.textContent = this._formatTimestamp(message.timestamp);
@@ -262,6 +205,111 @@ class MessageBubble {
     }
 
     /**
+     * Render unified message footer with references, actions, and metadata
+     * @param {Object} message - Message object
+     * @param {Object} options - Display options
+     * @returns {HTMLElement} Footer element
+     */
+    static _renderMessageFooter(message, options = {}) {
+        const { courseId, showFeedback = true, showTimestamp = true } = options;
+        const footerEl = document.createElement('div');
+        footerEl.className = 'message-footer';
+
+        // References section
+        if (message.references && message.references.length > 0) {
+            const referencesSection = document.createElement('div');
+            referencesSection.className = 'message-footer-section message-footer-references';
+            
+            // Add references label
+            const referencesLabel = document.createElement('div');
+            referencesLabel.className = 'references-label';
+            referencesLabel.textContent = 'References';
+            referencesSection.appendChild(referencesLabel);
+            
+            // Render all references in a card-based layout for better visibility
+            const referencesList = document.createElement('div');
+            referencesList.className = 'references-list';
+            
+            // Render each reference as a card for better UX
+            message.references.forEach((ref, index) => {
+                const refCard = document.createElement('div');
+                refCard.className = 'reference-card';
+                
+                const refLink = ReferenceLink.render(ref, { courseId });
+                refCard.appendChild(refLink);
+                
+                referencesList.appendChild(refCard);
+            });
+            
+            referencesSection.appendChild(referencesList);
+            
+            // Show disclaimer if required
+            const refWithDisclaimer = message.references.find(r => r.requires_disclaimer === true);
+            if (refWithDisclaimer && refWithDisclaimer.disclaimer) {
+                const disclaimerEl = document.createElement('div');
+                disclaimerEl.className = 'reference-disclaimer';
+                disclaimerEl.innerHTML = `⚠️ <em>${refWithDisclaimer.disclaimer}</em>`;
+                referencesSection.appendChild(disclaimerEl);
+            }
+            
+            footerEl.appendChild(referencesSection);
+        }
+
+        // Actions section (escalation, feedback, expand)
+        const actionsSection = document.createElement('div');
+        actionsSection.className = 'message-footer-section message-footer-actions';
+        
+        // Left side: Escalation button
+        const actionsLeft = document.createElement('div');
+        actionsLeft.className = 'message-actions-left';
+        
+        if (message.queryId && !message.escalated && !message.escalationId) {
+            const escalationBtn = this._renderEscalationButton(message);
+            if (escalationBtn) {
+                actionsLeft.appendChild(escalationBtn);
+            }
+        }
+        
+        // Right side: Feedback and Expand buttons
+        const actionsRight = document.createElement('div');
+        actionsRight.className = 'message-actions-right';
+        
+        // Feedback buttons
+        if (showFeedback) {
+            const feedbackEl = this._renderFeedback(message.id);
+            actionsRight.appendChild(feedbackEl);
+        }
+        
+        // Expand button for long answers
+        if (message.answer) {
+            const answerLength = message.answer.length;
+            const isLongAnswer = answerLength > 500;
+            
+            if (isLongAnswer) {
+                const expandBtn = this._renderExpandButton(message.id, message.queryId);
+                actionsRight.appendChild(expandBtn);
+            }
+        }
+        
+        // Only add actions section if there are actions to show
+        if (actionsLeft.children.length > 0 || actionsRight.children.length > 0) {
+            actionsSection.appendChild(actionsLeft);
+            actionsSection.appendChild(actionsRight);
+            footerEl.appendChild(actionsSection);
+        }
+        
+        // Timestamp
+        if (showTimestamp && message.timestamp) {
+            const timestampEl = document.createElement('div');
+            timestampEl.className = 'message-footer-section message-footer-timestamp';
+            timestampEl.textContent = this._formatTimestamp(message.timestamp);
+            footerEl.appendChild(timestampEl);
+        }
+
+        return footerEl.children.length > 0 ? footerEl : null;
+    }
+
+    /**
      * Render feedback buttons
      * @param {string} messageId - Message ID
      * @returns {HTMLElement} Feedback element
@@ -324,7 +372,7 @@ class MessageBubble {
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M10 4L14 0M14 0H10M14 0V4M4 14L0 10M0 10H4M0 10V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>Expand in Coach Section</span>
+            <span>View in Coach</span>
         `;
         
         expandBtn.addEventListener('click', (e) => {
@@ -387,7 +435,9 @@ class MessageBubble {
         escalationBtn.className = 'btn-escalate';
         escalationBtn.setAttribute('aria-label', 'Escalate to Trainer');
         escalationBtn.innerHTML = `
-            <span class="escalate-icon">🔼</span>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" class="escalate-icon">
+                <path d="M8 2V14M2 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
             <span>Escalate to Trainer</span>
         `;
         

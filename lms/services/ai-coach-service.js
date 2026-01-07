@@ -2559,9 +2559,18 @@ class AICoachService {
                                 .insert(nodeRefs);
                         }
 
-                        // Auto-escalate if confidence < 40 (convert 0-1 scale to 0-100)
+                        // Auto-escalate ONLY for content queries with insufficient answers
+                        // Escalation rules:
+                        // 1. Query must be content category
+                        // 2. Content must be relevant (confidence > 0 means some content found)
+                        // 3. Answer must be insufficient (confidence < 40%)
+                        const queryCategory = result.query_category || (result.normalized_data?.query_category) || 'content';
                         const confidencePercent = (result.confidence || 0) * 100;
-                        if (confidencePercent < 40) {
+                        const isContentQuery = queryCategory === 'content';
+                        const hasRelevantContent = result.has_references || result.reference_count > 0;
+                        const isInsufficient = confidencePercent < 40;
+                        
+                        if (isContentQuery && hasRelevantContent && isInsufficient) {
                             try {
                                 const { escalationService } = await import('./escalation-service.js');
                                 const escalation = await escalationService.autoEscalateIfNeeded({

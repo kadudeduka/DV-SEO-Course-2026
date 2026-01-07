@@ -183,6 +183,11 @@ Output: {
   "variants": ["aeo", "answer optimization", "answer engine seo"]
 }
 
+Input: "aeo"
+Output: {
+  "variants": ["answer engine optimization", "answer engine seo", "answer optimization"]
+}
+
 Remember:
 - Return ONLY valid JSON
 - Do NOT include markdown formatting
