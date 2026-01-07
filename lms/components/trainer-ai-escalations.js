@@ -192,8 +192,23 @@ class TrainerAIEscalations {
             'resolved': '#28a745'
         }[escalation.status] || '#6c757d';
 
-        const confidencePercent = (escalation.ai_confidence * 100).toFixed(0);
+        // Map confidence - handle both 0-1 scale and 0-100 scale
+        let confidencePercent = 'N/A';
+        if (escalation.ai_confidence !== undefined && escalation.ai_confidence !== null) {
+            // If already in 0-1 scale, convert to percentage
+            confidencePercent = escalation.ai_confidence <= 1 ? (escalation.ai_confidence * 100).toFixed(0) : escalation.ai_confidence.toFixed(0);
+        } else if (escalation.confidence_score !== undefined && escalation.confidence_score !== null) {
+            // Use confidence_score directly (0-100 scale)
+            confidencePercent = parseFloat(escalation.confidence_score).toFixed(0);
+        }
+        
+        // Ensure we have a valid number for the color check
+        const confidenceValue = escalation.ai_confidence !== null && escalation.ai_confidence !== undefined 
+            ? escalation.ai_confidence 
+            : (escalation.confidence_score ? parseFloat(escalation.confidence_score) / 100 : null);
         const date = new Date(escalation.created_at).toLocaleDateString();
+        // Prefer question_text (stored), then original_question (mapped), then question relation
+        const questionText = escalation.question_text || escalation.original_question || (escalation.question && escalation.question.question) || 'No question text available';
 
         return `
             <div class="escalation-card" style="margin-bottom: 20px; padding: 20px; background: white; border: 1px solid #e0e0e0; border-radius: 8px; border-left: 4px solid ${statusColor};">
@@ -205,19 +220,19 @@ class TrainerAIEscalations {
                             </span>
                             <span style="color: #666; font-size: 14px;">${date}</span>
                         </div>
-                        <h3 style="margin: 0 0 10px 0; font-size: 18px;">${this.escapeHtml(escalation.original_question)}</h3>
+                        <h3 style="margin: 0 0 10px 0; font-size: 18px;">${this.escapeHtml(questionText)}</h3>
                         <div style="color: #666; font-size: 14px; margin-bottom: 10px;">
                             <strong>Learner:</strong> ${this.escapeHtml(learnerName)}
                         </div>
                         <div style="color: #666; font-size: 14px;">
                             <strong>AI Confidence:</strong> 
-                            <span style="color: ${escalation.ai_confidence < 0.5 ? '#dc3545' : '#ffc107'}; font-weight: 600;">
+                            <span style="color: ${confidenceValue !== null && confidenceValue < 0.5 ? '#dc3545' : '#ffc107'}; font-weight: 600;">
                                 ${confidencePercent}%
                             </span>
                         </div>
                     </div>
                     <div>
-                        <a href="#/trainer/ai-escalations/${escalation.id}" 
+                        <a href="#/trainer/ai-escalations/${escalation.escalation_id || escalation.id}" 
                            class="btn btn-primary" 
                            style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; text-decoration: none; cursor: pointer;">
                             ${escalation.status === 'pending' ? 'Respond' : 'View'}

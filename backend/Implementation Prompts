@@ -1,0 +1,128 @@
+You are a Senior AI UX + Learning Systems Engineer.
+
+TASK:
+Implement a standardized, empathetic, reference-safe Answer Template
+for the AI Coach so that every response:
+
+- Feels personally understood
+- Is clearly structured and easy to read
+- Cites exact course references
+- Encourages continued learning
+
+This is a SYSTEM-level change, not just formatting.
+
+────────────────────────────────────
+CONTEXT (ACCEPT AS TRUE)
+────────────────────────────────────
+- Content is stored as atomic nodes.
+- References are resolved BEFORE the LLM.
+- LLM must NOT guess references.
+- Query normalization already rephrases user intent.
+
+────────────────────────────────────
+RESPONSE TEMPLATE TO IMPLEMENT
+────────────────────────────────────
+
+Every AI Coach response MUST follow this structure:
+
+1. Coach Identity
+   Format:
+   🤖 {AI Coach Name}
+
+2. Understanding Section (MANDATORY)
+   Heading:
+   🔍 What I understand from your question
+   Rules:
+   - Use normalized intent
+   - Rephrase user’s need in simple, human language
+   - Max 2 lines
+   - No technical jargon
+
+3. Explanation Section (MANDATORY)
+   Heading:
+   📘 Explanation
+   Rules:
+   - Explain ONLY using resolved atomic nodes
+   - Use bullets and indentation
+   - Clear hierarchy (no long paragraphs)
+   - Add examples ONLY if present in nodes
+
+4. Importance Section (OPTIONAL)
+   Heading:
+   📌 Why this matters
+   Rules:
+   - Include only when concept has practical relevance
+   - Max 2 lines
+
+5. Reference Section (MANDATORY IF AVAILABLE)
+   Heading:
+   📍 Course Reference(s)
+   Rules:
+   - Use canonical references exactly
+   - Format strictly as:
+     • Day X → Chapter Y → {Topic / Section}
+   - Never invent or approximate references
+
+6. Engagement Section (MANDATORY)
+   Heading:
+   💬 What would you like to explore next?
+   Rules:
+   - Offer 3–4 specific continuation options
+   - Options must relate to the same topic
+   - Warm, encouraging tone
+   - No generic phrases like “let me know”
+
+────────────────────────────────────
+BEHAVIORAL GUARDRAILS (STRICT)
+────────────────────────────────────
+- If no references are resolved:
+  - Skip Explanation
+  - Respond with:
+    “This topic is not covered in the current course material.”
+
+- Never:
+  - Say “based on the course”
+  - Guess chapters or days
+  - Mention internal system logic
+  - Hallucinate references
+
+- Tone must be:
+  - Calm
+  - Supportive
+  - Mentor-like (not chatbot-like)
+
+────────────────────────────────────
+IMPLEMENTATION REQUIREMENTS
+────────────────────────────────────
+1. Create a reusable AnswerRenderer module/function.
+2. Inputs to AnswerRenderer:
+   - coachName
+   - normalizedIntent
+   - resolvedNodes[]
+   - canonicalReferences[]
+3. Output:
+   - Fully formatted answer following the template.
+4. Ensure indentation and section separators are preserved.
+5. Make the template extensible for other courses.
+
+────────────────────────────────────
+DELIVERABLES
+────────────────────────────────────
+- AnswerRenderer implementation
+- Example invocation
+- Example output for:
+  “Tell me more about keyword research”
+- Short explanation of how this improves learner trust
+
+────────────────────────────────────
+QUALITY BAR
+────────────────────────────────────
+If the answer:
+- Feels generic
+- Does not acknowledge intent
+- Has unclear structure
+- Can be reused without personalization
+
+→ THE TASK HAS FAILED.
+
+BEGIN IMPLEMENTATION NOW.

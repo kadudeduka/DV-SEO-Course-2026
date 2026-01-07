@@ -21,7 +21,8 @@ CHECK (type IN (
     'trainer_assigned',
     'course_allocated',
     'lab_submitted',
-    'lab_reviewed'
+    'lab_reviewed',
+    'escalation'
 ));
 
 -- Step 4: Verify the constraint was updated
@@ -42,7 +43,8 @@ DECLARE
         'trainer_assigned',
         'course_allocated',
         'lab_submitted',
-        'lab_reviewed'
+        'lab_reviewed',
+        'escalation'
     ];
     test_type TEXT;
     test_id UUID;

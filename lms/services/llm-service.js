@@ -12,10 +12,17 @@ class LLMService {
         // Try multiple sources for API key
         let apiKey = null;
         
+        // Check environment variables (Node.js)
+        if (typeof process !== 'undefined' && process.env) {
+            apiKey = process.env.OPENAI_API_KEY || 
+                     process.env.VITE_OPENAI_API_KEY || 
+                     apiKey;
+        }
+        
         // Check import.meta.env (for Vite builds)
         try {
             if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_API_KEY) {
-                apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+                apiKey = import.meta.env.VITE_OPENAI_API_KEY || apiKey;
             }
         } catch (e) {
             // import.meta not available, continue
@@ -26,12 +33,16 @@ class LLMService {
             apiKey = window.LMS_CONFIG.OPENAI_API_KEY;
         }
         
+        // For Node.js: Try loading from config file if not found (deferred, since we can't use top-level await in constructor)
+        // Note: This will be done lazily if needed, but primarily we rely on environment variables for Node.js
+        
         this.apiKey = apiKey;
         this.baseURL = 'https://api.openai.com/v1';
         this.cache = new Map();
         
         if (!this.apiKey) {
             console.warn('[LLMService] OpenAI API key not found. AI Coach will not work.');
+            console.warn('[LLMService] Tried: process.env.OPENAI_API_KEY, window.LMS_CONFIG, config/app.config.local.js');
         }
     }
 
@@ -317,7 +328,7 @@ Respond with ONLY the category name.`
 - Exclude lab assignment logistics (documentation, submission templates, assignment steps) unless explicitly asked
 - Distinguish between conceptual questions (explain concept) and lab questions (provide lab guidance)
 - When a specific chapter is mentioned, extract content ONLY from that chapter
-- CRITICAL REFERENCE RULE: Do NOT include any chapter, day, or lab references in your answer (e.g., "Day X → Chapter Y", "Chapter X", "Lab Y"). The system will automatically add references based on the content you use.`;
+- CRITICAL REFERENCE RULE: Do NOT include any chapter, day, or lab references in your answer (e.g., "Day X → Chapter Y", "Chapter X", "Lab Y", "D1.C1.S3"). The system will automatically add references based on the content you use. Do NOT use phrases like "refer to", "see Chapter X", "as mentioned in Day Y".`;
 
         const messages = [
             { role: 'system', content: fullSystemPrompt },
@@ -572,6 +583,20 @@ Respond with ONLY the category name.`
         if (arrowPattern.test(cleanedAnswer)) {
             referenceFound = true;
             cleanedAnswer = cleanedAnswer.replace(arrowPattern, '');
+        }
+
+        // Pattern 6: Canonical format (D1.C1.S3)
+        const canonicalPattern = /D\d+\.(C|L)\d+\.([SCEDPLHTB])\d+/gi;
+        if (canonicalPattern.test(cleanedAnswer)) {
+            referenceFound = true;
+            cleanedAnswer = cleanedAnswer.replace(canonicalPattern, '');
+        }
+
+        // Pattern 7: Reference phrases ("refer to", "see", "as mentioned in")
+        const referencePhrasePattern = /\b(refer to|see|consult|as mentioned in|according to|in chapter|in day|in lab)\s+(day|chapter|lab)\s+\d+/gi;
+        if (referencePhrasePattern.test(cleanedAnswer)) {
+            referenceFound = true;
+            cleanedAnswer = cleanedAnswer.replace(referencePhrasePattern, '');
         }
 
         // Clean up extra whitespace and punctuation

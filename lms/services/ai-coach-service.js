@@ -16,6 +16,7 @@ import { answerGovernanceService } from './answer-governance-service.js';
 import { depthClassifierService } from './depth-classifier.js';
 import { supabaseClient } from './supabase-client.js';
 import { chunkMetadataService } from './chunk-metadata-service.js';
+import { strictPipelineService } from './strict-pipeline-service.js';
 
 class AICoachService {
     constructor() {
@@ -30,7 +31,24 @@ class AICoachService {
      * @param {Object} options - Additional options
      * @returns {Promise<Object>} Response object
      */
+    /**
+     * @deprecated Use processQueryStrict instead. This method uses the old answer format.
+     * processQueryStrict uses the new standardized answer template with AnswerRenderer.
+     * This method now delegates to processQueryStrict to ensure consistent formatting.
+     */
     async processQuery(learnerId, courseId, question, options = {}) {
+        console.warn('[AICoachService] processQuery is deprecated. Redirecting to processQueryStrict for consistent answer formatting.');
+        
+        // Delegate to processQueryStrict to use the new standardized answer template
+        return this.processQueryStrict(learnerId, courseId, question, options);
+    }
+
+    /**
+     * OLD processQuery implementation (kept for reference only - not used)
+     * This method has been replaced by processQueryStrict which uses AnswerRenderer
+     * for consistent, structured answer formatting.
+     */
+    async _processQueryOld(learnerId, courseId, question, options = {}) {
         const startTime = Date.now();
         const stepTimes = {}; // Track time for each step
         const logStep = (stepName) => {
@@ -1111,11 +1129,15 @@ class AICoachService {
                 }
 
                 // Replace "Direct Answer:" or "Direct Answer" at the start with coach name
-                finalAnswer = finalAnswer.replace(/^Direct Answer:\s*/i, `${coachName}: `);
-                finalAnswer = finalAnswer.replace(/^Direct Answer\s*/i, `${coachName}: `);
+                // Handle various formats: "Direct Answer:", "Direct Answer", "Direct Answer: " etc.
+                finalAnswer = finalAnswer.replace(/^Direct\s+Answer\s*:\s*/i, `${coachName}: `);
+                finalAnswer = finalAnswer.replace(/^Direct\s+Answer\s+/i, `${coachName}: `);
                 
                 // Also handle if it appears after a newline (less common but possible)
-                finalAnswer = finalAnswer.replace(/\nDirect Answer:\s*/gi, `\n${coachName}: `);
+                finalAnswer = finalAnswer.replace(/\nDirect\s+Answer\s*:\s*/gi, `\n${coachName}: `);
+                
+                // Handle case where it might be in the middle (shouldn't happen, but just in case)
+                finalAnswer = finalAnswer.replace(/\s+Direct\s+Answer\s*:\s*/gi, ` ${coachName}: `);
             }
 
             // 14. Assemble references from validated chunks ONLY (SYSTEM-OWNED, not LLM-generated)
@@ -2409,6 +2431,192 @@ class AICoachService {
         }
 
         return references;
+    }
+
+    /**
+     * Process query using strict two-step pipeline (NEW ARCHITECTURE)
+     * This method uses atomic content nodes and system-owned references
+     * @param {string} learnerId - Learner ID
+     * @param {string} courseId - Course identifier
+     * @param {string} question - User question
+     * @param {Object} options - Additional options
+     * @returns {Promise<Object>} Response object
+     */
+    async processQueryStrict(learnerId, courseId, question, options = {}) {
+        console.log('[AICoachService] processQueryStrict called (using atomic content architecture)');
+        
+        try {
+            // 1. Validate query
+            const validation = await queryProcessorService.validateQuery(learnerId, courseId, question);
+            if (!validation.valid) {
+                return {
+                    success: false,
+                    error: validation.reason === 'Course not allocated to learner' 
+                        ? 'This course is not allocated to you. Please contact your administrator.'
+                        : validation.reason,
+                    queryId: null
+                };
+            }
+
+            // 2. Preprocess query
+            const processedQuestion = queryProcessorService.preprocessQuery(question);
+
+            // 3. Get trainer personalization (if available)
+            let trainerPersonalization = null;
+            let coachName = 'AI Coach'; // Default
+            try {
+                coachName = await trainerPersonalizationService.getCoachName(courseId, learnerId) || 'AI Coach';
+                if (coachName && coachName !== 'AI Coach') {
+                    trainerPersonalization = `You are ${coachName}. Maintain a supportive and instructional tone.`;
+                }
+            } catch (error) {
+                console.warn('[AICoachService] Could not get trainer personalization:', error);
+            }
+
+            // 4. Detect if this is lab guidance
+            const isLabGuidance = queryProcessorService.isLabQuestion(processedQuestion);
+
+            // 5. Process using strict pipeline
+            const result = await strictPipelineService.processQueryStrict(
+                processedQuestion,
+                courseId,
+                learnerId,
+                {
+                    trainerPersonalization,
+                    isLabGuidance,
+                    coachName: coachName, // Pass coachName for AnswerRenderer
+                    model: options.model || 'gpt-4o-mini'
+                }
+            );
+
+            // 6. Store query and response
+            let queryId = null;
+            let responseId = null;
+            let escalationId = null; // Declare at function scope
+            
+            try {
+                // Store query
+                const { data: queryData, error: queryError } = await supabaseClient
+                    .from('ai_coach_queries')
+                    .insert({
+                        learner_id: learnerId,
+                        course_id: courseId,
+                        question: processedQuestion,
+                        intent: isLabGuidance ? 'lab_guidance' : 'course_content',
+                        status: result.success ? 'answered' : 'failed',
+                        created_at: new Date().toISOString()
+                    })
+                    .select('id')
+                    .single();
+
+                if (!queryError && queryData) {
+                    queryId = queryData.id;
+                }
+
+                // Store response if successful
+                if (result.success && queryId) {
+                    const { data: responseData, error: responseError } = await supabaseClient
+                        .from('ai_coach_responses')
+                        .insert({
+                            query_id: queryId,
+                            answer: result.answer,
+                            reference_locations: result.references.map(ref => ({
+                                canonical_reference: ref.canonical_reference,
+                                display_reference: ref.display_reference,
+                                day: ref.day,
+                                container_type: ref.container_type,
+                                container_id: ref.container_id,
+                                container_title: ref.container_title,
+                                is_primary: ref.is_primary || false
+                            })),
+                            confidence_score: result.confidence,
+                            is_lab_guidance: isLabGuidance,
+                            model_used: options.model || 'gpt-4o-mini',
+                            created_at: new Date().toISOString()
+                        })
+                        .select('id')
+                        .single();
+
+                    if (!responseError && responseData) {
+                        responseId = responseData.id;
+
+                        // Store content_node_references
+                        if (result.references.length > 0) {
+                            const nodeRefs = result.references.map(ref => ({
+                                query_id: queryId,
+                                response_id: responseId,
+                                canonical_reference: ref.canonical_reference,
+                                reference_type: ref.is_primary ? 'primary' : 'secondary',
+                                day: ref.day,
+                                container_type: ref.container_type,
+                                container_id: ref.container_id,
+                                container_title: ref.container_title,
+                                sequence_number: ref.sequence_number || null
+                            }));
+
+                            await supabaseClient
+                                .from('content_node_references')
+                                .insert(nodeRefs);
+                        }
+
+                        // Auto-escalate if confidence < 40 (convert 0-1 scale to 0-100)
+                        const confidencePercent = (result.confidence || 0) * 100;
+                        if (confidencePercent < 40) {
+                            try {
+                                const { escalationService } = await import('./escalation-service.js');
+                                const escalation = await escalationService.autoEscalateIfNeeded({
+                                    questionId: queryId,
+                                    courseId: courseId,
+                                    learnerId: learnerId,
+                                    confidenceScore: confidencePercent,
+                                    aiResponseSnapshot: result.answer
+                                });
+                                
+                                if (escalation) {
+                                    escalationId = escalation.escalation_id;
+                                    console.log(`[AICoachService] Auto-escalated question ${queryId} (confidence: ${confidencePercent}%)`);
+                                }
+                            } catch (escalationError) {
+                                console.error('[AICoachService] Error during auto-escalation:', escalationError);
+                                // Don't fail the request if escalation fails
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.warn('[AICoachService] Error storing query/response:', error);
+                // Continue even if storage fails
+            }
+
+            // 7. Format response
+            return {
+                success: result.success,
+                escalated: escalationId !== null,
+                escalationId: escalationId,
+                answer: result.answer,
+                references: result.references.map(ref => ({
+                    day: ref.day,
+                    chapter: ref.container_id,
+                    chapter_title: ref.container_title,
+                    display: ref.display_reference,
+                    canonical_reference: ref.canonical_reference,
+                    is_primary: ref.is_primary || false
+                })),
+                confidence: result.confidence,
+                queryId: queryId,
+                responseId: responseId,
+                source: result.source || 'strict_pipeline',
+                error: result.error || null
+            };
+
+        } catch (error) {
+            console.error('[AICoachService] Error in processQueryStrict:', error);
+            return {
+                success: false,
+                error: 'I encountered an error processing your question. Please try again or contact your trainer.',
+                queryId: null
+            };
+        }
     }
 }
 

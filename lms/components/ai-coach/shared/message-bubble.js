@@ -41,6 +41,19 @@ class MessageBubble {
             contentEl.textContent = message.text || message.question;
         }
 
+        // Add trainer badge for trainer messages (before content)
+        if (type === 'trainer') {
+            const trainerBadge = document.createElement('div');
+            trainerBadge.className = 'trainer-badge';
+            const trainerName = message.trainer?.name || message.trainer?.full_name || 'Trainer';
+            trainerBadge.innerHTML = `
+                <span class="trainer-icon">👨‍🏫</span>
+                <span class="trainer-label">Trainer Response</span>
+                <span class="trainer-name">by ${trainerName}</span>
+            `;
+            container.insertBefore(trainerBadge, contentEl);
+        }
+
         container.appendChild(contentEl);
 
         // References (for AI messages)
@@ -98,6 +111,14 @@ class MessageBubble {
             container.appendChild(badgeEl);
         }
 
+        // Escalation button (for AI messages)
+        if (type === 'ai' && message.queryId) {
+            const escalationBtn = this._renderEscalationButton(message);
+            if (escalationBtn) {
+                container.appendChild(escalationBtn);
+            }
+        }
+
         // Feedback buttons (for AI messages)
         if (type === 'ai' && showFeedback) {
             const feedbackEl = this._renderFeedback(message.id || container.getAttribute('data-message-id'));
@@ -140,6 +161,21 @@ class MessageBubble {
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;');
 
+        // Handle "Key Points:" and "Next Steps:" as headers (even without ###)
+        // Convert them to markdown headers first
+        formatted = formatted.replace(/\b(Key Points|Next Steps):\s*/gi, '### $1\n');
+        
+        // Handle headers that might have content on the same line
+        // Pattern: ### Header: - list item or ### Header: content
+        formatted = formatted.replace(/###\s+([^:]+):\s*([^\n]+)/g, (match, header, content) => {
+            // If content starts with - or *, it's a list - split to new line
+            if (content.trim().match(/^[-*]\s/)) {
+                return `### ${header.trim()}\n${content.trim()}`;
+            }
+            // Otherwise, keep header and content together for now
+            return match;
+        });
+
         // Convert markdown headers (### Header) to HTML headers
         formatted = formatted.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
         formatted = formatted.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
@@ -150,6 +186,7 @@ class MessageBubble {
         formatted = formatted.replace(/\n\n+/g, '<PARAGRAPH_BREAK>');
         formatted = formatted.replace(/\n(?=<h[1-3])/g, '<PARAGRAPH_BREAK>');
         formatted = formatted.replace(/(<\/h[1-3]>)\n/g, '$1<PARAGRAPH_BREAK>');
+        formatted = formatted.replace(/(<\/h[1-3]>)</g, '$1<PARAGRAPH_BREAK>');
 
         // Basic markdown: **bold**
         formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -158,7 +195,8 @@ class MessageBubble {
         formatted = formatted.replace(/(?<!^[-*]\s)\*(.*?)\*(?!\s)/g, '<em>$1</em>');
 
         // Numbered lists (1. item) - handle multiple lists properly
-        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>)(\d+\.\s+.+(?:\n\d+\.\s+.+)*)/gm, (match, listContent) => {
+        // Match lists that come after headers, paragraph breaks, or start of line
+        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>|<PARAGRAPH_BREAK><\/h[1-3]>)\s*(\d+\.\s+.+(?:\n\d+\.\s+.+)*)/gm, (match, listContent) => {
             const items = listContent.trim().split(/\n(?=\d+\.\s+)/);
             return '<ol>' + items.map(item => {
                 const content = item.replace(/^\d+\.\s+/, '').trim();
@@ -167,8 +205,34 @@ class MessageBubble {
         });
 
         // Bullet lists (- item or * item) - handle multiple lists properly
-        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>)([-*]\s+.+(?:\n[-*]\s+.+)*)/gm, (match, listContent) => {
-            const items = listContent.trim().split(/\n(?=[-*]\s+)/);
+        // Match lists that come after headers, paragraph breaks, or start of line
+        // Also handle cases where list items might be on the same line separated by spaces
+        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>|<PARAGRAPH_BREAK><\/h[1-3]>)\s*([-*]\s+.+(?:\n[-*]\s+.+)*)/gm, (match, listContent) => {
+            // Split by newlines first
+            let items = listContent.trim().split(/\n(?=[-*]\s+)/);
+            
+            // If we only have one item, check if it contains multiple list items on the same line
+            if (items.length === 1) {
+                const singleItem = items[0];
+                // Check for pattern: - item1 - item2 - item3 (multiple list markers)
+                // Match: - followed by content, then another - (not at start)
+                const listPattern = /-\s+[^-]+(?=\s+-)/g;
+                const matches = singleItem.match(listPattern);
+                
+                if (matches && matches.length > 0) {
+                    // Split by list markers that appear after content
+                    // Pattern: match " - " that comes after some content (not at start)
+                    items = singleItem.split(/(?<=[^\s])\s+-\s+/).map((item, index) => {
+                        if (index === 0) {
+                            // First item already has the marker
+                            return item.trim();
+                        }
+                        // Add marker back for subsequent items
+                        return '- ' + item.trim();
+                    });
+                }
+            }
+            
             return '<ul>' + items.map(item => {
                 const content = item.replace(/^[-*]\s+/, '').trim();
                 return '<li>' + content + '</li>';
@@ -305,6 +369,139 @@ class MessageBubble {
             } else {
                 window.location.hash = '#/coach/ai';
             }
+        }
+    }
+
+    /**
+     * Render escalation button
+     * @param {Object} message - Message object
+     * @returns {HTMLElement|null} Escalation button element or null
+     */
+    static _renderEscalationButton(message) {
+        // Don't show escalation button if already escalated
+        if (message.escalated || message.escalationId) {
+            return null;
+        }
+
+        const escalationBtn = document.createElement('button');
+        escalationBtn.className = 'btn-escalate';
+        escalationBtn.setAttribute('aria-label', 'Escalate to Trainer');
+        escalationBtn.innerHTML = `
+            <span class="escalate-icon">🔼</span>
+            <span>Escalate to Trainer</span>
+        `;
+        
+        escalationBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            await this._handleEscalationClick(message);
+        });
+
+        return escalationBtn;
+    }
+
+    /**
+     * Handle escalation button click
+     * @param {Object} message - Message object
+     */
+    static async _handleEscalationClick(message) {
+        if (!message.queryId) {
+            console.error('[MessageBubble] Cannot escalate: missing queryId');
+            return;
+        }
+
+        try {
+            const { escalationService } = await import('../../../services/escalation-service.js');
+            
+            // Get question details
+            const { supabaseClient } = await import('../../../services/supabase-client.js');
+            
+            // Try query_id first, then fallback to id
+            let query = null;
+            const { data: queryById } = await supabaseClient
+                .from('ai_coach_queries')
+                .select('id, course_id, learner_id')
+                .eq('id', message.queryId)
+                .maybeSingle();
+            
+            if (queryById) {
+                query = queryById;
+            } else {
+                // Try with query_id field
+                const { data: queryByQueryId } = await supabaseClient
+                    .from('ai_coach_queries')
+                    .select('id, course_id, learner_id')
+                    .eq('query_id', message.queryId)
+                    .maybeSingle();
+                
+                if (queryByQueryId) {
+                    query = queryByQueryId;
+                }
+            }
+
+            if (!query) {
+                console.error('[MessageBubble] Question not found for queryId:', message.queryId);
+                throw new Error('Question not found. Please refresh the page and try again.');
+            }
+
+            // Get confidence score from message or fetch from latest response
+            let confidenceScore = null;
+            if (message.confidence !== undefined && message.confidence !== null) {
+                // Convert 0-1 to 0-100
+                confidenceScore = message.confidence * 100;
+            } else if (message.confidenceScore !== undefined && message.confidenceScore !== null) {
+                // Handle if already 0-100 or 0-1
+                confidenceScore = message.confidenceScore > 1 ? message.confidenceScore : message.confidenceScore * 100;
+            } else {
+                // Fallback: fetch from database
+                const { data: latestResponse } = await supabaseClient
+                    .from('ai_coach_responses')
+                    .select('confidence_score')
+                    .eq('query_id', message.queryId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                
+                if (latestResponse && latestResponse.confidence_score !== null) {
+                    confidenceScore = parseFloat(latestResponse.confidence_score);
+                }
+            }
+            
+            const escalation = await escalationService.manualEscalate({
+                questionId: message.queryId,
+                courseId: query.course_id,
+                learnerId: query.learner_id,
+                aiResponseSnapshot: message.answer || '',
+                confidenceScore: confidenceScore
+            });
+
+            if (escalation) {
+                // Update message
+                message.escalated = true;
+                message.escalationId = escalation.escalation_id;
+
+                // Show success message
+                const notice = document.createElement('div');
+                notice.className = 'escalation-notice success';
+                notice.textContent = '✓ Question escalated to trainer. You will be notified when they respond.';
+                
+                const messageEl = document.querySelector(`[data-message-id="${message.id}"]`);
+                if (messageEl) {
+                    messageEl.appendChild(notice);
+                    // Hide escalation button
+                    const escalationBtn = messageEl.querySelector('.btn-escalate');
+                    if (escalationBtn) {
+                        escalationBtn.style.display = 'none';
+                    }
+                }
+
+                // Dispatch event
+                window.dispatchEvent(new CustomEvent('ai-coach-escalated', {
+                    detail: { escalation, message }
+                }));
+            }
+        } catch (error) {
+            console.error('[MessageBubble] Error escalating question:', error);
+            alert('Failed to escalate question. Please try again.');
         }
     }
 

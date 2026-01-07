@@ -84,51 +84,108 @@ class ReferenceLink {
      * @returns {string} Formatted reference text
      */
     static _formatReference(reference) {
+        // Priority 1: Use display_reference if available and meaningful (new atomic content architecture)
+        // Also check for 'display' field (legacy compatibility)
+        const displayRef = reference.display_reference || reference.display;
+        if (displayRef && 
+            displayRef.trim() && 
+            displayRef.length > 10 &&
+            !displayRef.match(/^(Chapter|Lab)$/i) &&
+            !displayRef.match(/^Day\s+\d+\s*→\s*Chapter$/i)) {
+            return displayRef;
+        }
+
+        // Priority 2: Build from new format (container_id, container_type, container_title)
         const parts = [];
 
+        // Day
         if (reference.day) {
             parts.push(`Day ${reference.day}`);
         }
 
-        // Parse chapter_id to extract readable chapter number
-        // Format: "day2-ch1" -> "Chapter 1" or "day2-ch2" -> "Chapter 2"
-        let chapterDisplay = null;
-        if (reference.chapter) {
-            // Check if chapter is in format "dayX-chY" or just a number
-            const chapterMatch = reference.chapter.match(/day\d+-ch(\d+)/i);
-            if (chapterMatch) {
-                chapterDisplay = `Chapter ${chapterMatch[1]}`;
-            } else if (/^\d+$/.test(reference.chapter)) {
-                // Just a number
-                chapterDisplay = `Chapter ${reference.chapter}`;
+        // Container (Chapter or Lab) with number
+        if (reference.container_type === 'chapter' && reference.container_id) {
+            // Extract chapter number from container_id (e.g., "day5-ch1" or "ch1")
+            const dayMatch = reference.container_id.match(/day\d+-ch(\d+)/i);
+            const simpleMatch = reference.container_id.match(/ch(\d+)/i);
+            const chapterNum = dayMatch ? dayMatch[1] : (simpleMatch ? simpleMatch[1] : null);
+            if (chapterNum) {
+                parts.push(`Chapter ${chapterNum}`);
             } else {
-                // Use as-is if not in expected format
-                chapterDisplay = `Chapter ${reference.chapter}`;
+                parts.push('Chapter');
+            }
+        } else if (reference.container_type === 'lab' && reference.container_id) {
+            // Extract lab number from container_id (e.g., "day5-lab1" or "lab1")
+            const dayMatch = reference.container_id.match(/day\d+-lab(\d+)/i);
+            const simpleMatch = reference.container_id.match(/lab(\d+)/i);
+            const labNum = dayMatch ? dayMatch[1] : (simpleMatch ? simpleMatch[1] : null);
+            if (labNum) {
+                parts.push(`Lab ${labNum}`);
+            } else {
+                parts.push('Lab');
             }
         }
 
-        if (chapterDisplay) {
-            parts.push(chapterDisplay);
-        }
-
-        if (reference.chapter_title) {
-            parts.push(reference.chapter_title);
-        } else if (reference.chapter && !chapterDisplay) {
-            // Fallback if chapter_title not available
-            parts.push(reference.chapter);
-        }
-
-        if (reference.lab_id) {
-            // Parse lab_id if it's in format "dayX-labY"
-            const labMatch = reference.lab_id.match(/day\d+-lab(\d+)/i);
-            if (labMatch) {
-                parts.push(`Lab ${labMatch[1]}`);
-            } else {
-                parts.push(`Lab: ${reference.lab_id}`);
+        // Container title (CRITICAL - makes references descriptive)
+        if (reference.container_title && reference.container_title.trim()) {
+            // Clean up container_title - remove redundant prefixes
+            let title = reference.container_title
+                .replace(/^Day\s+\d+[,\s]+/i, '')
+                .replace(/^Chapter\s+\d+[,\s—\-]+/i, '')
+                .replace(/^Lab\s+\d+[,\s—\-]+/i, '')
+                .replace(/^[—\-]\s*/, '')
+                .trim();
+            
+            // Only add if meaningful (not just "Chapter" or "Lab")
+            if (title && 
+                title.length > 3 &&
+                !title.match(/^(Chapter|Lab|Day)\s*\d*$/i)) {
+                parts.push(title);
             }
         }
 
-        return parts.join(' → ');
+        // Primary topic (if container_title is missing or too short)
+        if (reference.primary_topic && 
+            (!reference.container_title || reference.container_title.length < 10)) {
+            let topic = reference.primary_topic
+                .replace(/^Day\s+\d+[,\s]+/i, '')
+                .replace(/^Chapter\s+\d+[,\s—\-]+/i, '')
+                .replace(/^Lab\s+\d+[,\s—\-]+/i, '')
+                .replace(/^[—\-]\s*/, '')
+                .trim();
+            
+            if (topic && 
+                topic.length > 3 &&
+                topic !== reference.container_title &&
+                !topic.match(/^(Chapter|Lab|Day)\s*\d*$/i)) {
+                parts.push(topic);
+            }
+        }
+
+        // Fallback: Legacy format support (for backward compatibility)
+        if (parts.length === 0) {
+            if (reference.chapter) {
+                const chapterMatch = reference.chapter.match(/day\d+-ch(\d+)/i);
+                if (chapterMatch) {
+                    parts.push(`Day ${reference.day || '?'}`, `Chapter ${chapterMatch[1]}`);
+                } else {
+                    parts.push(`Chapter ${reference.chapter}`);
+                }
+            }
+            if (reference.chapter_title) {
+                parts.push(reference.chapter_title);
+            }
+            if (reference.lab_id) {
+                const labMatch = reference.lab_id.match(/day\d+-lab(\d+)/i);
+                if (labMatch) {
+                    parts.push(`Lab ${labMatch[1]}`);
+                } else {
+                    parts.push(`Lab: ${reference.lab_id}`);
+                }
+            }
+        }
+
+        return parts.length > 0 ? parts.join(' → ') : 'Chapter';
     }
 
     /**
@@ -146,12 +203,48 @@ class ReferenceLink {
             return '#';
         }
 
-        // Build URL based on reference type
-        if (reference.lab_id) {
-            return `#/courses/${courseId}/labs/${reference.lab_id}`;
-        } else if (reference.chapter) {
-            return `#/courses/${courseId}/content/${reference.chapter}`;
-        } else if (reference.day) {
+        // Priority 1: New format - Use container_id and container_type (MUST be non-empty)
+        const containerId = reference.container_id && reference.container_id.trim() ? reference.container_id.trim() : null;
+        const containerType = reference.container_type && reference.container_type.trim() ? reference.container_type.trim() : null;
+        
+        if (containerId && containerType) {
+            if (containerType === 'lab') {
+                // Lab URL: /courses/{courseId}/labs/{container_id}
+                return `#/courses/${courseId}/labs/${containerId}`;
+            } else if (containerType === 'chapter') {
+                // Chapter URL: /courses/{courseId}/content/{container_id}
+                return `#/courses/${courseId}/content/${containerId}`;
+            }
+        }
+
+        // Priority 2: Try to extract from canonical_reference if container_id is missing
+        if (reference.canonical_reference && (!containerId || !containerType)) {
+            // Extract day and container from canonical reference (e.g., "D8.C1.H1" or "D20.C1.S1")
+            const match = reference.canonical_reference.match(/^D(\d+)\.(C|L)(\d+)/i);
+            if (match) {
+                const day = match[1];
+                const type = match[2].toLowerCase() === 'c' ? 'chapter' : 'lab';
+                const num = match[3];
+                const extractedContainerId = `day${day}-${type === 'chapter' ? 'ch' : 'lab'}${num}`;
+                
+                if (type === 'lab') {
+                    return `#/courses/${courseId}/labs/${extractedContainerId}`;
+                } else {
+                    return `#/courses/${courseId}/content/${extractedContainerId}`;
+                }
+            }
+        }
+
+        // Priority 3: Legacy format support (for backward compatibility)
+        if (reference.lab_id && reference.lab_id.trim()) {
+            return `#/courses/${courseId}/labs/${reference.lab_id.trim()}`;
+        } else if (reference.chapter && reference.chapter.trim()) {
+            return `#/courses/${courseId}/content/${reference.chapter.trim()}`;
+        }
+
+        // Last resort: Day level (only if no container information available)
+        if (reference.day) {
+            console.warn('[ReferenceLink] Falling back to day-level URL. Missing container_id/container_type for reference:', reference);
             return `#/courses/${courseId}/learn?day=${reference.day}`;
         }
 

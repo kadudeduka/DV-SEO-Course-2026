@@ -451,19 +451,30 @@
 
 .response-text ul,
 .response-text ol {
-    margin: 12px 0;
-    padding-left: 24px;
+    margin: 12px 0 12px 0;
+    padding-left: 28px;
+    list-style-position: outside;
+}
+
+.response-text ul {
+    list-style-type: disc;
+}
+
+.response-text ol {
+    list-style-type: decimal;
 }
 
 .response-text li {
-    margin: 6px 0;
+    margin: 8px 0;
     line-height: 1.7;
+    padding-left: 8px;
+    display: list-item;
 }
 
 .response-text li ul,
 .response-text li ol {
-    margin: 6px 0;
-    padding-left: 20px;
+    margin: 8px 0;
+    padding-left: 24px;
 }
 
 .response-text pre {

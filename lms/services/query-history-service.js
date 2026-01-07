@@ -39,6 +39,12 @@ class QueryHistoryService {
                         confidence_score,
                         reference_locations,
                         created_at
+                    ),
+                    escalations:ai_coach_escalations!question_id (
+                        escalation_id,
+                        status,
+                        escalation_type,
+                        created_at
                     )
                 `)
                 .eq('learner_id', learnerId)
@@ -58,20 +64,29 @@ class QueryHistoryService {
             }
 
             // Format the data for easier consumption
-            return (data || []).map(query => ({
-                id: query.id,
-                question: query.question,
-                intent: query.intent,
-                status: query.status,
-                createdAt: query.created_at,
-                responses: (query.responses || []).map(response => ({
-                    id: response.id,
-                    answer: response.answer,
-                    confidenceScore: response.confidence_score,
-                    references: response.reference_locations || [], // Use correct column name
-                    createdAt: response.created_at
-                }))
-            }));
+            return (data || []).map(query => {
+                // Get the most recent open escalation, or most recent escalation if no open one
+                const escalations = query.escalations || [];
+                const openEscalation = escalations.find(e => e.status === 'open') || escalations[0];
+                
+                return {
+                    id: query.id,
+                    question: query.question,
+                    intent: query.intent,
+                    status: query.status,
+                    createdAt: query.created_at,
+                    responses: (query.responses || []).map(response => ({
+                        id: response.id,
+                        answer: response.answer,
+                        confidenceScore: response.confidence_score,
+                        references: response.reference_locations || [], // Use correct column name
+                        createdAt: response.created_at,
+                        // Add escalation info to the latest response
+                        escalated: openEscalation ? openEscalation.status === 'open' : false,
+                        escalationId: openEscalation ? openEscalation.escalation_id : null
+                    }))
+                };
+            });
         } catch (error) {
             console.error('[QueryHistoryService] Error fetching query history:', error);
             throw error;
@@ -101,6 +116,12 @@ class QueryHistoryService {
                         confidence_score,
                         reference_locations,
                         created_at
+                    ),
+                    escalations:ai_coach_escalations!question_id (
+                        escalation_id,
+                        status,
+                        escalation_type,
+                        created_at
                     )
                 `)
                 .eq('learner_id', learnerId)
@@ -112,20 +133,30 @@ class QueryHistoryService {
                 throw error;
             }
 
-            return (data || []).map(query => ({
-                id: query.id,
-                question: query.question,
-                intent: query.intent,
-                status: query.status,
-                createdAt: query.created_at,
-                hasResponse: query.responses && query.responses.length > 0,
-                latestResponse: query.responses && query.responses.length > 0 
+            return (data || []).map(query => {
+                // Get the most recent open escalation, or most recent escalation if no open one
+                const escalations = query.escalations || [];
+                const openEscalation = escalations.find(e => e.status === 'open') || escalations[0];
+                
+                const latestResponse = query.responses && query.responses.length > 0 
                     ? {
                         ...query.responses[0],
-                        references: query.responses[0].reference_locations || [] // Use correct column name
+                        references: query.responses[0].reference_locations || [], // Use correct column name
+                        escalated: openEscalation ? openEscalation.status === 'open' : false,
+                        escalationId: openEscalation ? openEscalation.escalation_id : null
                     }
-                    : null
-            }));
+                    : null;
+                
+                return {
+                    id: query.id,
+                    question: query.question,
+                    intent: query.intent,
+                    status: query.status,
+                    createdAt: query.created_at,
+                    hasResponse: query.responses && query.responses.length > 0,
+                    latestResponse: latestResponse
+                };
+            });
         } catch (error) {
             console.error('[QueryHistoryService] Error fetching recent queries:', error);
             throw error;

@@ -15,6 +15,8 @@ import { authService } from '../services/auth-service.js';
 import { courseService } from '../services/course-service.js';
 import { router } from '../core/router.js';
 import Header from './header.js';
+import ReferenceLink from './ai-coach/shared/reference-link.js';
+import { supabaseClient } from '../services/supabase-client.js';
 
 class CoachAIPage {
     constructor(container) {
@@ -308,7 +310,7 @@ class CoachAIPage {
                 const fullQuery = await queryHistoryService.getQueryDetails(queryId, this.currentUser.id);
                 if (fullQuery) {
                     this.selectedQuery = fullQuery;
-                    this.renderQueryDetail(fullQuery);
+                    await this.renderQueryDetail(fullQuery);
                     // Highlight the query in the list if it exists
                     this._highlightQueryInList(queryId);
                 } else {
@@ -319,7 +321,7 @@ class CoachAIPage {
             }
         } else {
             this.selectedQuery = query;
-            this.renderQueryDetail(query);
+            await this.renderQueryDetail(query);
             // Highlight the query in the list
             this._highlightQueryInList(queryId);
         }
@@ -353,7 +355,7 @@ class CoachAIPage {
      * Render query detail
      * @param {Object} query - Query object
      */
-    renderQueryDetail(query) {
+    async renderQueryDetail(query) {
         const mainContent = document.getElementById('coach-main-content');
         if (!mainContent) return;
 
@@ -392,14 +394,20 @@ class CoachAIPage {
                         ${latestResponse.references && latestResponse.references.length > 0 ? `
                             <div class="response-references">
                                 <div class="references-label">References:</div>
-                                <div class="references-list">
-                                    ${latestResponse.references.map(ref => `
-                                        <a href="#/courses/${this.courseId}/content/${ref.chapter || ref.chapter_id}" 
-                                           class="reference-link">
-                                            ${ref.chapter_title || ref.chapter || 'Chapter'}
-                                        </a>
-                                    `).join('')}
-                                </div>
+                                <div class="references-list" id="response-references-container"></div>
+                            </div>
+                        ` : ''}
+                        
+                        ${!latestResponse.escalated && !latestResponse.escalationId ? `
+                            <div class="response-actions">
+                                <button class="btn btn-escalate" id="escalate-btn-${query.id}" data-query-id="${query.id}">
+                                    <span class="escalate-icon">🔼</span>
+                                    Escalate to Trainer
+                                </button>
+                            </div>
+                        ` : latestResponse.escalated || latestResponse.escalationId ? `
+                            <div class="escalation-notice">
+                                <p>✓ Question has been escalated to trainer. You will be notified when they respond.</p>
                             </div>
                         ` : ''}
                     </div>
@@ -421,6 +429,31 @@ class CoachAIPage {
             </div>
         `;
 
+        // Render references using ReferenceLink component (same as widget)
+        if (latestResponse && latestResponse.references && latestResponse.references.length > 0) {
+            const referencesContainer = document.getElementById('response-references-container');
+            if (referencesContainer) {
+                // Use ReferenceLink component to render references (same logic as widget)
+                const referencesEl = ReferenceLink.renderMultiple(latestResponse.references, {
+                    courseId: this.courseId
+                });
+                referencesContainer.appendChild(referencesEl);
+            }
+        }
+
+        // Load and display trainer response if escalation exists
+        if (latestResponse && (latestResponse.escalated || latestResponse.escalationId)) {
+            await this.loadTrainerResponse(latestResponse.escalationId, mainContent);
+        }
+
+        // Attach escalation button handler
+        const escalateBtn = document.getElementById(`escalate-btn-${query.id}`);
+        if (escalateBtn) {
+            escalateBtn.addEventListener('click', async () => {
+                await this.handleEscalation(query.id, latestResponse);
+            });
+        }
+
         // Attach event listeners
         const backBtn = document.getElementById('back-to-list-btn');
         if (backBtn) {
@@ -434,6 +467,85 @@ class CoachAIPage {
             followupBtn.addEventListener('click', () => {
                 this.showAskQuestionForm(query.question);
             });
+        }
+    }
+
+    /**
+     * Handle escalation button click
+     * @param {string} queryId - Query ID
+     * @param {Object} response - Response object
+     */
+    async handleEscalation(queryId, response) {
+        const escalateBtn = document.querySelector(`[data-query-id="${queryId}"]`);
+        if (!escalateBtn) return;
+
+        try {
+            escalateBtn.disabled = true;
+            escalateBtn.innerHTML = '<span>Escalating...</span>';
+
+            const { escalationService } = await import('../services/escalation-service.js');
+            
+            // Get question details - try 'id' field first (standard), then 'query_id' if needed
+            let query = null;
+            const { data: queryById, error: errorById } = await supabaseClient
+                .from('ai_coach_queries')
+                .select('id, course_id, learner_id')
+                .eq('id', queryId)
+                .maybeSingle();
+            
+            if (!errorById && queryById) {
+                query = queryById;
+            } else {
+                // Try with query_id field if id doesn't work
+                const { data: queryByQueryId, error: errorByQueryId } = await supabaseClient
+                    .from('ai_coach_queries')
+                    .select('id, course_id, learner_id')
+                    .eq('query_id', queryId)
+                    .maybeSingle();
+                
+                if (!errorByQueryId && queryByQueryId) {
+                    query = queryByQueryId;
+                }
+            }
+
+            if (!query) {
+                console.error('[CoachAIPage] Query not found for ID:', queryId);
+                throw new Error('Question not found. Please refresh the page and try again.');
+            }
+
+            // Create manual escalation - use the id field for questionId
+            const escalation = await escalationService.manualEscalate({
+                questionId: query.id, // Use the actual id from the query
+                courseId: query.course_id,
+                learnerId: query.learner_id,
+                aiResponseSnapshot: response.answer || ''
+            });
+
+            if (escalation) {
+                // Update UI
+                escalateBtn.style.display = 'none';
+                
+                // Show success notice
+                const noticeEl = document.createElement('div');
+                noticeEl.className = 'escalation-notice success';
+                noticeEl.style.cssText = 'margin-top: 15px; padding: 10px; background: #e7f3ff; border: 1px solid #2196F3; border-radius: 4px;';
+                noticeEl.innerHTML = '<p style="margin: 0; color: #1565C0;">✓ Question escalated to trainer. You will be notified when they respond.</p>';
+                
+                const responseCard = escalateBtn.closest('.query-response-card');
+                if (responseCard) {
+                    responseCard.appendChild(noticeEl);
+                }
+
+                // Reload query detail to show updated state
+                await this.selectQuery(queryId);
+            }
+        } catch (error) {
+            console.error('[CoachAIPage] Error escalating question:', error);
+            alert(`Failed to escalate question: ${error.message}. Please try again.`);
+            if (escalateBtn) {
+                escalateBtn.disabled = false;
+                escalateBtn.innerHTML = '<span class="escalate-icon">🔼</span> Escalate to Trainer';
+            }
         }
     }
 
@@ -516,8 +628,8 @@ class CoachAIPage {
         }
 
         try {
-            // Use AI Coach service to process question
-            const result = await aiCoachService.processQuery(
+            // Use AI Coach service to process question (strict pipeline with new answer template)
+            const result = await aiCoachService.processQueryStrict(
                 this.currentUser.id,
                 this.courseId,
                 question
@@ -621,6 +733,134 @@ class CoachAIPage {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * Handle escalation button click
+     * @param {string} queryId - Query ID
+     * @param {Object} response - Response object
+     */
+    async handleEscalation(queryId, response) {
+        const escalateBtn = document.querySelector(`[data-query-id="${queryId}"]`);
+        if (!escalateBtn) return;
+
+        try {
+            escalateBtn.disabled = true;
+            escalateBtn.textContent = 'Escalating...';
+
+            const { escalationService } = await import('../services/escalation-service.js');
+            
+            // Get question details
+            const { data: query } = await supabaseClient
+                .from('ai_coach_queries')
+                .select('id, course_id, learner_id')
+                .eq('id', queryId)
+                .single();
+
+            if (!query) {
+                throw new Error('Question not found');
+            }
+
+            // Get confidence score from response object or fetch from database
+            let confidenceScore = null;
+            if (response.confidence !== undefined && response.confidence !== null) {
+                // Convert 0-1 to 0-100
+                confidenceScore = response.confidence * 100;
+            } else if (response.confidenceScore !== undefined && response.confidenceScore !== null) {
+                // Handle if already 0-100 or 0-1
+                confidenceScore = response.confidenceScore > 1 ? response.confidenceScore : response.confidenceScore * 100;
+            } else {
+                // Fallback: fetch from database
+                const { data: latestResponse } = await supabaseClient
+                    .from('ai_coach_responses')
+                    .select('confidence_score')
+                    .eq('query_id', queryId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+                
+                if (latestResponse && latestResponse.confidence_score !== null) {
+                    confidenceScore = parseFloat(latestResponse.confidence_score);
+                }
+            }
+            
+            const escalation = await escalationService.manualEscalate({
+                questionId: queryId,
+                courseId: query.course_id,
+                learnerId: query.learner_id,
+                aiResponseSnapshot: response.answer || '',
+                confidenceScore: confidenceScore
+            });
+
+            if (escalation) {
+                // Update UI
+                escalateBtn.style.display = 'none';
+                
+                // Show success notice
+                const noticeEl = document.createElement('div');
+                noticeEl.className = 'escalation-notice success';
+                noticeEl.innerHTML = '<p>✓ Question escalated to trainer. You will be notified when they respond.</p>';
+                
+                const responseCard = escalateBtn.closest('.query-response-card');
+                if (responseCard) {
+                    responseCard.appendChild(noticeEl);
+                }
+
+                // Reload query detail to show updated state
+                await this.selectQuery(queryId);
+            }
+        } catch (error) {
+            console.error('[CoachAIPage] Error escalating question:', error);
+            alert('Failed to escalate question. Please try again.');
+            if (escalateBtn) {
+                escalateBtn.disabled = false;
+                escalateBtn.innerHTML = '<span class="escalate-icon">🔼</span> Escalate to Trainer';
+            }
+        }
+    }
+
+    /**
+     * Load and display trainer response for an escalation
+     * @param {string} escalationId - Escalation ID
+     * @param {HTMLElement} container - Container to append trainer response to
+     */
+    async loadTrainerResponse(escalationId, container) {
+        if (!escalationId || !container) return;
+
+        try {
+            const { escalationService } = await import('../services/escalation-service.js');
+            const trainerResponse = await escalationService.getTrainerResponse(escalationId);
+
+            if (trainerResponse) {
+                // Find the response card to append trainer response after it
+                const responseCard = container.querySelector('.query-response-card');
+                if (responseCard) {
+                    const trainerResponseCard = document.createElement('div');
+                    trainerResponseCard.className = 'query-response-card trainer-response';
+                    trainerResponseCard.style.marginTop = '20px';
+                    trainerResponseCard.style.borderLeft = '4px solid #007bff';
+                    trainerResponseCard.innerHTML = `
+                        <div class="card-label">
+                            👨‍🏫 Trainer Response
+                            ${trainerResponse.trainer ? `
+                                <span style="font-size: 12px; font-weight: normal; color: #666; margin-left: 10px;">
+                                    by ${this.escapeHtml(trainerResponse.trainer.full_name || trainerResponse.trainer.name || 'Trainer')}
+                                </span>
+                            ` : ''}
+                        </div>
+                        <div class="response-text">${this.formatResponse(trainerResponse.response_text)}</div>
+                        <div style="margin-top: 10px; color: #666; font-size: 12px;">
+                            Responded: ${new Date(trainerResponse.created_at).toLocaleString()}
+                            ${trainerResponse.updated_at && trainerResponse.updated_at !== trainerResponse.created_at ? 
+                                ` • Updated: ${new Date(trainerResponse.updated_at).toLocaleString()}` : ''}
+                        </div>
+                    `;
+                    responseCard.insertAdjacentElement('afterend', trainerResponseCard);
+                }
+            }
+        } catch (error) {
+            console.error('[CoachAIPage] Error loading trainer response:', error);
+        }
     }
 }
 

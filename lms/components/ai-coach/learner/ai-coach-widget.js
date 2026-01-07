@@ -302,6 +302,11 @@ class AICoachWidget {
                 for (const message of this.messages) {
                     const messageEl = await this._renderMessage(message);
                     messagesArea.appendChild(messageEl);
+                    
+                    // Load trainer response if this is an escalated AI message
+                    if (message.type === 'ai' && (message.escalated || message.escalationId)) {
+                        await this._loadTrainerResponse(message.escalationId);
+                    }
                 }
                 this._scrollToBottom();
             }
@@ -601,8 +606,9 @@ class AICoachWidget {
         this._scrollToBottom();
 
         try {
-            // Process query with timeout protection
-            const queryPromise = aiCoachService.processQuery(
+            // Process query with strict pipeline (atomic content architecture)
+            // This uses system-owned references and eliminates reference hallucination
+            const queryPromise = aiCoachService.processQueryStrict(
                 this.currentUser.id,
                 this.currentCourseId,
                 question
@@ -640,8 +646,12 @@ class AICoachWidget {
                 this._scrollToBottom();
 
                 // Check if escalated
-                if (response.escalated) {
+                if (response.escalated || response.escalationId) {
                     this._showEscalationNotice(response.escalationId);
+                    // Load trainer response if available
+                    if (response.escalationId) {
+                        await this._loadTrainerResponse(response.escalationId);
+                    }
                 }
             } else {
                 console.error('[AICoachWidget] Query processing failed:', response.error);
@@ -751,6 +761,8 @@ class AICoachWidget {
                         answer: query.latestResponse.answer,
                         references: query.latestResponse.references || [],
                         confidence: query.latestResponse.confidence_score,
+                        escalated: query.latestResponse.escalated || false,
+                        escalationId: query.latestResponse.escalationId || null,
                         queryId: query.id, // Store query ID for expand button
                         timestamp: query.latestResponse.created_at
                     });
@@ -832,7 +844,11 @@ class AICoachWidget {
                 .select(`
                     query_id,
                     response_id,
-                    ai_coach_queries!inner(question, created_at),
+                    ai_coach_queries!inner(
+                        question, 
+                        created_at,
+                        escalations:ai_coach_escalations!question_id(escalation_id, status)
+                    ),
                     ai_coach_responses!inner(answer, reference_locations, confidence_score, is_lab_guidance, created_at)
                 `)
                 .eq('learner_id', this.currentUser.id)
@@ -855,6 +871,10 @@ class AICoachWidget {
                 }
 
                 if (item.ai_coach_responses) {
+                    // Get escalation status for this query
+                    const escalations = item.ai_coach_queries?.escalations || [];
+                    const openEscalation = escalations.find(e => e.status === 'open') || escalations[0];
+                    
                     this.messages.push({
                         id: item.response_id,
                         type: 'ai',
@@ -862,6 +882,9 @@ class AICoachWidget {
                         references: item.ai_coach_responses.reference_locations,
                         confidence: item.ai_coach_responses.confidence_score,
                         isLabGuidance: item.ai_coach_responses.is_lab_guidance,
+                        escalated: openEscalation ? openEscalation.status === 'open' : false,
+                        escalationId: openEscalation ? openEscalation.escalation_id : null,
+                        queryId: item.query_id, // Store query ID for escalation button
                         timestamp: item.ai_coach_responses.created_at
                     });
                 }
@@ -950,11 +973,10 @@ class AICoachWidget {
         const notice = document.createElement('div');
         notice.className = 'ai-coach-escalation-notice';
         notice.innerHTML = `
-            <div style="padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; margin: 10px 0;">
-                <p style="margin: 0; color: #856404;">
-                    ⚠️ <strong>Escalated to Trainer</strong><br>
-                    Your question has been escalated to your trainer due to low AI confidence. 
-                    They will review and respond soon. You'll be notified when they respond.
+            <div style="padding: 15px; background: #e7f3ff; border: 1px solid #2196F3; border-radius: 4px; margin: 10px 0;">
+                <p style="margin: 0; color: #1565C0;">
+                    ℹ️ <strong>Escalated to Trainer</strong><br>
+                    I want to make sure you get the best possible answer. This question has been escalated to a trainer.
                 </p>
             </div>
         `;
@@ -963,6 +985,42 @@ class AICoachWidget {
         if (messagesArea) {
             messagesArea.appendChild(notice);
             this._scrollToBottom();
+        }
+
+        // Load trainer response if available
+        if (escalationId) {
+            this._loadTrainerResponse(escalationId);
+        }
+    }
+
+    /**
+     * Load and display trainer response
+     * @param {string} escalationId - Escalation ID
+     */
+    async _loadTrainerResponse(escalationId) {
+        try {
+            const { escalationService } = await import('../../../services/escalation-service.js');
+            const trainerResponse = await escalationService.getTrainerResponse(escalationId);
+
+            if (trainerResponse) {
+                const messagesArea = document.getElementById('messages-area');
+                if (messagesArea) {
+                    const trainerMessage = {
+                        id: `trainer-${trainerResponse.response_id}`,
+                        type: 'trainer',
+                        answer: trainerResponse.response_text,
+                        trainer: trainerResponse.trainer,
+                        timestamp: trainerResponse.created_at,
+                        escalationId: escalationId
+                    };
+                    
+                    const trainerMessageEl = await this._renderMessage(trainerMessage);
+                    messagesArea.appendChild(trainerMessageEl);
+                    this._scrollToBottom();
+                }
+            }
+        } catch (error) {
+            console.error('[AICoachWidget] Error loading trainer response:', error);
         }
     }
 

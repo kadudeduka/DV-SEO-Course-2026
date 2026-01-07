@@ -103,6 +103,28 @@ class TrainerPersonalizationService {
                 return null;
             }
 
+            // Debug: Check if trainer exists in users table
+            console.log(`[TrainerPersonalization] [DEBUG] Checking if trainer ${trainerId} exists in users table...`);
+            const { data: trainerCheck, error: trainerCheckError } = await supabaseClient
+                .from('users')
+                .select('id, name, email, role')
+                .eq('id', trainerId)
+                .maybeSingle();
+            
+            if (trainerCheckError) {
+                console.error(`[TrainerPersonalization] [DEBUG] ERROR checking if trainer exists:`, trainerCheckError);
+            } else if (!trainerCheck) {
+                console.error(`[TrainerPersonalization] [DEBUG] CRITICAL: Trainer ID ${trainerId} does NOT exist in users table!`);
+                console.error(`[TrainerPersonalization] [DEBUG] This means the trainer_id in course_allocations doesn't match any user.`);
+            } else {
+                console.log(`[TrainerPersonalization] [DEBUG] ✓ Trainer EXISTS in users table:`, {
+                    id: trainerCheck.id,
+                    name: trainerCheck.name,
+                    email: trainerCheck.email,
+                    role: trainerCheck.role
+                });
+            }
+
             // Get course-specific personalization first (don't filter by enabled yet - we'll check after)
             console.log(`[TrainerPersonalization] Fetching course-specific personalization for trainer ${trainerId}, course ${courseId}`);
             let { data: personalization, error } = await supabaseClient
@@ -136,6 +158,32 @@ class TrainerPersonalizationService {
                     console.log(`[TrainerPersonalization] Course-specific personalization is disabled (enabled=${personalization.personalization_enabled}), trying global personalization for trainer ${trainerId}`);
                 }
                 
+                // Debug: Check what trainer_ids exist in personalization table
+                console.log(`[TrainerPersonalization] [DEBUG] Checking what trainer_ids exist in personalization table...`);
+                const { data: allPersonalizations, error: debugError } = await supabaseClient
+                    .from('ai_coach_trainer_personalization')
+                    .select('trainer_id, course_id, coach_name, personalization_enabled')
+                    .limit(10);
+                
+                if (debugError) {
+                    console.error(`[TrainerPersonalization] [DEBUG] Error fetching personalizations:`, debugError);
+                } else if (!allPersonalizations || allPersonalizations.length === 0) {
+                    console.warn(`[TrainerPersonalization] [DEBUG] No personalizations found in table at all!`);
+                } else {
+                    console.log(`[TrainerPersonalization] [DEBUG] Found ${allPersonalizations.length} personalizations. Sample trainer_ids:`, 
+                        allPersonalizations.map(p => ({ 
+                            trainer_id: p.trainer_id, 
+                            course_id: p.course_id,
+                            coach_name: p.coach_name,
+                            enabled: p.personalization_enabled
+                        }))
+                    );
+                    console.log(`[TrainerPersonalization] [DEBUG] Looking for trainer_id: ${trainerId}`);
+                    console.log(`[TrainerPersonalization] [DEBUG] Does it match any?`, 
+                        allPersonalizations.some(p => p.trainer_id === trainerId) ? 'YES' : 'NO'
+                    );
+                }
+
                 const { data: globalPersonalization, error: globalError } = await supabaseClient
                     .from('ai_coach_trainer_personalization')
                     .select('*')
@@ -271,12 +319,36 @@ class TrainerPersonalizationService {
 
         try {
             console.log(`[TrainerPersonalization] Fetching trainer name as fallback for trainer ${trainerId}`);
-            const { data: trainer, error } = await supabaseClient
+            
+            // First, try to find user with role='trainer'
+            let { data: trainer, error } = await supabaseClient
                 .from('users')
-                .select('id, email, name, full_name')
+                .select('id, email, name, full_name, role')
                 .eq('id', trainerId)
                 .eq('role', 'trainer')
                 .maybeSingle();
+
+            // If not found with trainer role, try without role filter (trainer might have different role)
+            if (error || !trainer) {
+                console.log(`[TrainerPersonalization] Trainer not found with role='trainer', trying without role filter for ${trainerId}`);
+                const { data: user, error: userError } = await supabaseClient
+                    .from('users')
+                    .select('id, email, name, full_name, role')
+                    .eq('id', trainerId)
+                    .maybeSingle();
+                
+                if (!userError && user) {
+                    trainer = user;
+                    error = null;
+                    console.log(`[TrainerPersonalization] Found user ${trainerId} with role: ${user.role}`);
+                } else {
+                    if (userError) {
+                        console.warn(`[TrainerPersonalization] Error fetching user (without role filter):`, userError);
+                    } else {
+                        console.warn(`[TrainerPersonalization] User not found in users table: ${trainerId}`);
+                    }
+                }
+            }
 
             if (error) {
                 console.warn(`[TrainerPersonalization] Error fetching trainer name:`, error);

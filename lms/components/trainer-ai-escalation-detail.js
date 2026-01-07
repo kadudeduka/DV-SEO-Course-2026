@@ -54,6 +54,12 @@ class TrainerAIEscalationDetail {
 
             this.escalation = await escalationService.getEscalationById(this.escalationId);
 
+            // Check if escalation was found
+            if (!this.escalation) {
+                this.renderError('Escalation not found. It may have been deleted or does not exist.');
+                return;
+            }
+
             // Verify trainer owns this escalation
             if (this.escalation.trainer_id !== this.currentUser.id) {
                 this.renderError('Unauthorized: This escalation is not assigned to you.');
@@ -75,7 +81,9 @@ class TrainerAIEscalationDetail {
         const learnerName = learner.full_name || learner.name || learner.email || 'Unknown Learner';
         const query = this.escalation.query || {};
         const response = this.escalation.response || {};
-        const confidencePercent = (this.escalation.ai_confidence * 100).toFixed(0);
+        const confidencePercent = this.escalation.ai_confidence !== undefined && this.escalation.ai_confidence !== null 
+            ? (this.escalation.ai_confidence * 100).toFixed(0) 
+            : (this.escalation.confidence_score ? this.escalation.confidence_score.toFixed(0) : '0');
 
         this.container.innerHTML = `
             <div class="container" style="max-width: 1000px; margin: 20px auto; padding: 20px;">
@@ -137,15 +145,19 @@ class TrainerAIEscalationDetail {
      * Render question
      */
     renderQuestion(query) {
+        const questionText = this.escalation.original_question || (query && query.question) || 'Question text not available';
+        const intent = (query && query.intent) || 'N/A';
+        const askedDate = (query && query.created_at) ? new Date(query.created_at).toLocaleString() : (this.escalation.created_at ? new Date(this.escalation.created_at).toLocaleString() : 'N/A');
+        
         return `
             <div class="info-card" style="padding: 20px; background: white; border: 1px solid #e0e0e0; border-radius: 8px;">
                 <h3 style="margin: 0 0 15px 0;">Learner's Question</h3>
                 <div style="padding: 15px; background: #f8f9fa; border-radius: 4px; font-size: 16px; line-height: 1.6;">
-                    ${this.escapeHtml(this.escalation.original_question)}
+                    ${this.escapeHtml(questionText)}
                 </div>
                 <div style="margin-top: 15px; color: #666; font-size: 14px;">
-                    <strong>Intent:</strong> ${query.intent || 'N/A'} | 
-                    <strong>Asked:</strong> ${query.created_at ? new Date(query.created_at).toLocaleString() : 'N/A'}
+                    <strong>Intent:</strong> ${intent} | 
+                    <strong>Asked:</strong> ${askedDate}
                 </div>
             </div>
         `;
@@ -165,9 +177,11 @@ class TrainerAIEscalationDetail {
                     <div style="display: flex; gap: 20px; margin-bottom: 10px;">
                         <div>
                             <strong>AI Confidence:</strong> 
-                            <span style="color: ${this.escalation.ai_confidence < 0.5 ? '#dc3545' : '#ffc107'}; font-weight: 600;">
-                                ${(this.escalation.ai_confidence * 100).toFixed(0)}%
-                            </span>
+                            ${this.escalation.ai_confidence !== null && this.escalation.ai_confidence !== undefined ? `
+                                <span style="color: ${this.escalation.ai_confidence < 0.5 ? '#dc3545' : '#ffc107'}; font-weight: 600;">
+                                    ${(this.escalation.ai_confidence * 100).toFixed(0)}%
+                                </span>
+                            ` : '<span style="color: #6c757d;">N/A</span>'}
                         </div>
                         <div><strong>Chunks Used:</strong> ${aiContext.chunks_used || 0}</div>
                     </div>

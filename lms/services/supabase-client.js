@@ -9,7 +9,28 @@
  *   const { data, error } = await supabaseClient.from('users').select();
  */
 
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+// Use npm package in Node.js, CDN URL in browser
+let createClient;
+if (typeof window === 'undefined') {
+    // Node.js environment - use npm package
+    try {
+        const supabaseModule = await import('@supabase/supabase-js');
+        createClient = supabaseModule.createClient;
+    } catch (error) {
+        // Fallback: try dynamic import with require if available
+        console.error('[SupabaseClient] Failed to import @supabase/supabase-js:', error);
+        throw new Error('@supabase/supabase-js package not found. Please install: npm install @supabase/supabase-js');
+    }
+} else {
+    // Browser environment - use CDN URL
+    try {
+        const supabaseModule = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
+        createClient = supabaseModule.createClient;
+    } catch (error) {
+        console.error('[SupabaseClient] Failed to import from CDN:', error);
+        throw new Error('Failed to load Supabase client from CDN');
+    }
+}
 
 /**
  * Get configuration from app config system
