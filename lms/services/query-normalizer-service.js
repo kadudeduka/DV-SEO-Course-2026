@@ -90,12 +90,14 @@ CRITICAL RULES:
      * "structural" - Questions about course structure (e.g., "How many chapters?", "What's the syllabus?")
      * "navigation" - Questions about course navigation (e.g., "Can I skip chapter 2?", "What's the order?")
      * "planning" - Questions about time/planning (e.g., "How much time for chapter 2?", "How long is this?")
+     * "unrelated" - Questions completely outside the scope of the course (e.g., "What's the weather?", "Tell me a joke", "How to cook pasta?")
    - Category detection keywords:
      * Content: "what is", "explain", "how does", "tell me about", "define" + subject matter terms
      * Lab Guidance: "stuck", "help with lab", "lab", "assignment", "submission"
      * Structural: "how many", "what chapters", "course structure", "syllabus", "outline"
      * Navigation: "skip", "can I", "should I", "order", "sequence", "prerequisite"
      * Planning: "how much time", "how long", "duration", "schedule", "timeline", "estimate"
+     * Unrelated: Questions about topics completely unrelated to the course, general knowledge, personal questions, off-topic queries
 
 2. CORRECT SPELLING: Fix all spelling mistakes and typos
 
@@ -145,7 +147,7 @@ INTENT TYPES:
 
 OUTPUT FORMAT (JSON only):
 {
-  "query_category": "content|lab_guidance|structural|navigation|planning",
+  "query_category": "content|lab_guidance|structural|navigation|planning|unrelated",
   "category_confidence": 0.0-1.0,
   "category_reasoning": "Brief explanation of category classification",
   "normalized_question": "Corrected and rephrased question",

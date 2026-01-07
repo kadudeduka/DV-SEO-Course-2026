@@ -47,6 +47,41 @@ class LLMService {
     }
 
     /**
+     * Update API key (useful for Node.js scripts that set env vars after module load)
+     */
+    updateApiKey() {
+        let apiKey = null;
+        
+        // Check environment variables (Node.js)
+        if (typeof process !== 'undefined' && process.env) {
+            apiKey = process.env.OPENAI_API_KEY || 
+                     process.env.VITE_OPENAI_API_KEY || 
+                     apiKey;
+        }
+        
+        // Check import.meta.env (for Vite builds)
+        try {
+            if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OPENAI_API_KEY) {
+                apiKey = import.meta.env.VITE_OPENAI_API_KEY || apiKey;
+            }
+        } catch (e) {
+            // import.meta not available, continue
+        }
+        
+        // Check window.LMS_CONFIG (browser config)
+        if (!apiKey && typeof window !== 'undefined' && window.LMS_CONFIG?.OPENAI_API_KEY) {
+            apiKey = window.LMS_CONFIG.OPENAI_API_KEY;
+        }
+        
+        if (apiKey) {
+            this.apiKey = apiKey;
+            console.log('[LLMService] API key updated from environment/config');
+        }
+        
+        return this.apiKey;
+    }
+
+    /**
      * Generate embedding for text using OpenAI
      * @param {string} text - Text to embed
      * @returns {Promise<Array<number>>} Embedding vector

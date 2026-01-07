@@ -14,7 +14,7 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import { aliasGeneratorService } from '../lms/services/alias-generator-service.js';
+// Note: aliasGeneratorService will be imported dynamically after config is loaded
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -26,20 +26,34 @@ function loadConfig() {
     // Try environment variables first
     let supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
     let supabaseKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
+    let openaiApiKey = process.env.OPENAI_API_KEY || process.env.VITE_OPENAI_API_KEY;
     
     // Try loading from config/app.config.local.js
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !supabaseKey || !openaiApiKey) {
         const configPath = join(__dirname, '..', 'config', 'app.config.local.js');
         if (existsSync(configPath)) {
             try {
                 // Read and parse the config file
                 const configContent = readFileSync(configPath, 'utf-8');
-                // Extract SUPABASE_URL and SUPABASE_ANON_KEY from window.LMS_CONFIG
+                // Extract SUPABASE_URL, SUPABASE_ANON_KEY, and OPENAI_API_KEY from window.LMS_CONFIG
+                // Use more specific regex to avoid matching comments or template values
                 const urlMatch = configContent.match(/SUPABASE_URL:\s*['"]([^'"]+)['"]/);
                 const keyMatch = configContent.match(/SUPABASE_ANON_KEY:\s*['"]([^'"]+)['"]/);
+                // Match OPENAI_API_KEY but exclude template values like "your-key"
+                const openaiMatch = configContent.match(/OPENAI_API_KEY:\s*['"]([^'"]+)['"]/);
                 
                 if (urlMatch) supabaseUrl = urlMatch[1];
                 if (keyMatch) supabaseKey = keyMatch[1];
+                if (openaiMatch) {
+                    const extractedKey = openaiMatch[1];
+                    // Validate that it's not a template placeholder
+                    if (extractedKey && !extractedKey.includes('your-key') && !extractedKey.includes('your-') && extractedKey.startsWith('sk-')) {
+                        openaiApiKey = extractedKey;
+                        console.log(`[Ingestion] Extracted OpenAI API key (starts with: ${extractedKey.substring(0, 10)}...)`);
+                    } else {
+                        console.warn(`[Ingestion] Invalid OpenAI API key format in config file (starts with: ${extractedKey ? extractedKey.substring(0, 20) : 'null'}...)`);
+                    }
+                }
             } catch (error) {
                 console.warn('[Ingestion] Could not read config file:', error.message);
             }
@@ -47,7 +61,7 @@ function loadConfig() {
     }
     
     // Try loading from .env file in config directory
-    if (!supabaseUrl || !supabaseKey) {
+    if (!supabaseUrl || !supabaseKey || !openaiApiKey) {
         const envPath = join(__dirname, '..', 'config', '.env');
         if (existsSync(envPath)) {
             try {
@@ -73,6 +87,8 @@ function loadConfig() {
                             supabaseUrl = value;
                         } else if (key === 'SUPABASE_ANON_KEY' || key === 'VITE_SUPABASE_ANON_KEY') {
                             supabaseKey = value;
+                        } else if (key === 'OPENAI_API_KEY' || key === 'VITE_OPENAI_API_KEY') {
+                            openaiApiKey = value;
                         }
                     }
                 }
@@ -82,11 +98,23 @@ function loadConfig() {
         }
     }
     
-    return { supabaseUrl, supabaseKey };
+    // Set OpenAI API key in environment if found (for LLM service)
+    // IMPORTANT: Set this BEFORE any services that use it are imported
+    if (openaiApiKey && !process.env.OPENAI_API_KEY) {
+        process.env.OPENAI_API_KEY = openaiApiKey;
+        console.log(`[Ingestion] Loaded OpenAI API key from config file (starts with: ${openaiApiKey.substring(0, 15)}...)`);
+        console.log(`[Ingestion] Environment variable OPENAI_API_KEY is now set: ${process.env.OPENAI_API_KEY ? 'YES' : 'NO'}`);
+    } else if (!openaiApiKey) {
+        console.warn('[Ingestion] No valid OpenAI API key found in config');
+    } else {
+        console.log(`[Ingestion] Using existing OPENAI_API_KEY from environment (starts with: ${process.env.OPENAI_API_KEY.substring(0, 15)}...)`);
+    }
+    
+    return { supabaseUrl, supabaseKey, openaiApiKey };
 }
 
-// Load configuration
-const { supabaseUrl, supabaseKey } = loadConfig();
+// Load configuration FIRST, before importing services that depend on it
+const { supabaseUrl, supabaseKey, openaiApiKey } = loadConfig();
 
 if (!supabaseUrl || !supabaseKey) {
     console.error('Error: SUPABASE_URL and SUPABASE_ANON_KEY must be set');
@@ -100,6 +128,15 @@ if (!supabaseUrl || !supabaseKey) {
     console.error('   SUPABASE_URL=your-url');
     console.error('   SUPABASE_ANON_KEY=your-key');
     process.exit(1);
+}
+
+if (!openaiApiKey) {
+    console.warn('\n⚠️  Warning: OPENAI_API_KEY not found.');
+    console.warn('   Alias generation will use fallback (basic aliases only).');
+    console.warn('   To enable LLM-based alias generation, set OPENAI_API_KEY in:');
+    console.warn('   1. Environment variable: export OPENAI_API_KEY="your-key"');
+    console.warn('   2. config/app.config.local.js: OPENAI_API_KEY: "your-key"');
+    console.warn('   3. config/.env file: OPENAI_API_KEY=your-key\n');
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey);
@@ -163,6 +200,32 @@ function extractShortDefinition(content) {
     return firstSentences.substring(0, 200);
 }
 
+// Lazy-loaded alias generator service (loaded after config)
+let aliasGeneratorService = null;
+
+/**
+ * Get alias generator service (lazy load after config is set)
+ */
+async function getAliasGeneratorService() {
+    if (!aliasGeneratorService) {
+        // Import the services
+        const aliasModule = await import('../lms/services/alias-generator-service.js');
+        const llmModule = await import('../lms/services/llm-service.js');
+        
+        // Update API key in LLM service (in case it was set after module load)
+        const updatedKey = llmModule.llmService.updateApiKey();
+        if (updatedKey) {
+            console.log(`[Ingestion] LLM service API key updated (starts with: ${updatedKey.substring(0, 15)}...)`);
+        } else {
+            console.warn('[Ingestion] LLM service API key is still not set after update');
+            console.warn(`[Ingestion] Current process.env.OPENAI_API_KEY: ${process.env.OPENAI_API_KEY ? process.env.OPENAI_API_KEY.substring(0, 15) + '...' : 'NOT SET'}`);
+        }
+        
+        aliasGeneratorService = aliasModule.aliasGeneratorService;
+    }
+    return aliasGeneratorService;
+}
+
 /**
  * Generate aliases using AliasGenerator service
  * @param {string} primaryTopic - Primary topic
@@ -179,8 +242,12 @@ async function generateAliases(primaryTopic, content, nodeType) {
         // Extract short definition from content
         const definition = extractShortDefinition(content);
         
+        // Get alias generator service (lazy loaded after config)
+        const service = await getAliasGeneratorService();
+        
         // Generate aliases using LLM-based service
-        const aliases = await aliasGeneratorService.generateAliases(
+        // This will automatically fallback to basic aliases if API key is not configured
+        const aliases = await service.generateAliases(
             primaryTopic,
             definition,
             nodeType
@@ -188,7 +255,8 @@ async function generateAliases(primaryTopic, content, nodeType) {
         
         return aliases;
     } catch (error) {
-        console.warn(`[Ingestion] Failed to generate aliases for "${primaryTopic}":`, error.message);
+        // This catch is a safety net - aliasGeneratorService should handle errors internally
+        console.warn(`[Ingestion] Unexpected error generating aliases for "${primaryTopic}":`, error.message);
         // Fallback: return basic aliases
         return [primaryTopic.toLowerCase().trim()];
     }

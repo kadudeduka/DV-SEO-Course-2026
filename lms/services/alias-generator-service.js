@@ -42,6 +42,14 @@ class AliasGeneratorService {
             return cached;
         }
 
+        // Check if API key is configured before attempting LLM call
+        if (!llmService.apiKey) {
+            // API key not configured, use fallback immediately without error
+            const fallbackAliases = this._fallbackAliases(primaryTopic);
+            this.cache.set(cacheKey, fallbackAliases);
+            return fallbackAliases;
+        }
+
         try {
             // Generate aliases using LLM
             const aliases = await this._generateWithLLM(primaryTopic, definition, nodeType);
@@ -56,9 +64,12 @@ class AliasGeneratorService {
             return validatedAliases;
             
         } catch (error) {
-            console.error('[AliasGenerator] Error generating aliases:', error);
+            // Log as warning instead of error since fallback is available
+            console.warn(`[AliasGenerator] LLM generation failed for "${primaryTopic}", using fallback:`, error.message);
             // Fallback: return basic aliases (lowercase version + acronym if applicable)
-            return this._fallbackAliases(primaryTopic);
+            const fallbackAliases = this._fallbackAliases(primaryTopic);
+            this.cache.set(cacheKey, fallbackAliases);
+            return fallbackAliases;
         }
     }
 
