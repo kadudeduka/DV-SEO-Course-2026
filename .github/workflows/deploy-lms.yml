@@ -32,6 +32,10 @@ jobs:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LINKEDIN_CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+          LINKEDIN_REDIRECT_URI: ${{ secrets.LINKEDIN_REDIRECT_URI }}
+          LINKEDIN_ENCRYPTION_KEY: ${{ secrets.LINKEDIN_ENCRYPTION_KEY }}
         run: |
           # Ensure config directory exists
           mkdir -p config
@@ -52,7 +56,11 @@ jobs:
               ADMIN_USERNAME: '${ADMIN_USERNAME}',
               ADMIN_PASSWORD: '${ADMIN_PASSWORD}',
               ADMIN_EMAIL: '${ADMIN_EMAIL}',
-              OPENAI_API_KEY: '${OPENAI_API_KEY}'
+              OPENAI_API_KEY: '${OPENAI_API_KEY}',
+              LINKEDIN_CLIENT_ID: '${LINKEDIN_CLIENT_ID}',
+              LINKEDIN_CLIENT_SECRET: '${LINKEDIN_CLIENT_SECRET}',
+              LINKEDIN_REDIRECT_URI: '${LINKEDIN_REDIRECT_URI}',
+              LINKEDIN_ENCRYPTION_KEY: '${LINKEDIN_ENCRYPTION_KEY}'
           };
           EOF
           
