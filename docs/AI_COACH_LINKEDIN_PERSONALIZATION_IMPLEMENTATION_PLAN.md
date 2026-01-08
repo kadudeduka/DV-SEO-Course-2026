@@ -17,7 +17,7 @@ This document provides a step-by-step implementation plan for the LinkedIn Train
 
 1. **LinkedIn App Registration** (Admin Task):
    - Register LinkedIn app at https://www.linkedin.com/developers/apps
-   - Obtain Client ID and Client Secret (77905vjbrtrubr) (WPL_AP1.NQrJmgz3WzT0EXNn.3wszvg==)
+   - Obtain Client ID and Client Secret key
    - Configure OAuth redirect URI: `https://{domain}/auth/linkedin/callback`
    - Request permissions: `r_liteprofile` or `r_profile_basicinfo`
    - Store credentials (waiting for admin completion)
