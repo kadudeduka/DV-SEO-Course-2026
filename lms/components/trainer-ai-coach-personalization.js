@@ -108,9 +108,78 @@ class TrainerAICoachPersonalization {
                 const key = p.course_id || 'global';
                 this.personalizations[key] = p;
             });
+
+            // Check for OAuth callback
+            await this.handleOAuthCallbackIfPresent();
         } catch (error) {
             console.error('[TrainerAICoachPersonalization] Error loading personalizations:', error);
             this.personalizations = {};
+        }
+    }
+
+    /**
+     * Handle OAuth callback if present in URL
+     */
+    async handleOAuthCallbackIfPresent() {
+        try {
+            const urlParams = new URLSearchParams(window.location.search);
+            const code = urlParams.get('code');
+            const state = urlParams.get('state');
+            const error = urlParams.get('error');
+            const errorDescription = urlParams.get('error_description');
+
+            // Check if this is a LinkedIn OAuth callback
+            if (code || error) {
+                // Remove OAuth params from URL
+                const newUrl = window.location.pathname + window.location.hash;
+                window.history.replaceState({}, document.title, newUrl);
+
+                if (error) {
+                    // OAuth error
+                    let errorMessage = 'LinkedIn authorization failed.';
+                    if (error === 'user_cancelled') {
+                        errorMessage = 'LinkedIn authorization was cancelled. Please try again.';
+                    } else if (errorDescription) {
+                        errorMessage = `LinkedIn authorization failed: ${errorDescription}`;
+                    }
+                    this.showMessage(`❌ ${errorMessage}`, 'error');
+                    return;
+                }
+
+                if (!code || !state) {
+                    this.showMessage('❌ Invalid OAuth callback. Missing code or state.', 'error');
+                    return;
+                }
+
+                // Determine course_id from state or use global (null)
+                // For now, we'll try to determine from current context
+                // You may need to store course_id in state token for better handling
+                const courseId = null; // Can be enhanced to extract from state
+
+                // Show loading
+                this.showMessage('⏳ Connecting LinkedIn and extracting data...', 'info');
+
+                try {
+                    // Handle OAuth callback
+                    await trainerPersonalizationService.handleLinkedInCallback(
+                        code,
+                        state,
+                        this.currentUser.id,
+                        courseId
+                    );
+
+                    // Reload personalizations to show updated data
+                    await this.loadPersonalizations();
+                    this.render();
+
+                    this.showMessage('✅ LinkedIn connected successfully! Your profile data has been extracted.', 'success');
+                } catch (error) {
+                    console.error('[TrainerAICoachPersonalization] OAuth callback error:', error);
+                    this.showMessage(`❌ Failed to connect LinkedIn: ${error.message}`, 'error');
+                }
+            }
+        } catch (error) {
+            console.error('[TrainerAICoachPersonalization] Error handling OAuth callback:', error);
         }
     }
 
@@ -174,8 +243,15 @@ class TrainerAICoachPersonalization {
                     </div>
 
                     <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">
+                            LinkedIn Connection
+                        </label>
+                        ${this.renderLinkedInConnectionSection(global, 'global')}
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 20px;">
                         <label for="global-linkedin" style="display: block; margin-bottom: 5px; font-weight: 600;">
-                            LinkedIn Profile URL
+                            LinkedIn Profile URL (Optional - Manual Entry)
                         </label>
                         <input 
                             type="url" 
@@ -186,7 +262,7 @@ class TrainerAICoachPersonalization {
                             style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px;"
                         />
                         <small style="color: #666; display: block; margin-top: 5px;">
-                            Share your LinkedIn profile with learners (optional)
+                            Enter manually if you prefer not to use OAuth connection above
                         </small>
                     </div>
 
@@ -225,14 +301,20 @@ class TrainerAICoachPersonalization {
                     <div class="form-group" style="margin-bottom: 20px;">
                         <label for="global-bio" style="display: block; margin-bottom: 5px; font-weight: 600;">
                             Bio / About You
+                            <small style="color: #666; font-weight: normal;"> (Optional - supplements LinkedIn headline)</small>
                         </label>
                         <textarea 
                             id="global-bio" 
                             class="form-control" 
                             rows="4"
-                            placeholder="Brief description of your background, experience, and what makes you unique..."
+                            maxlength="500"
+                            placeholder="Enter additional information about yourself to supplement your LinkedIn headline..."
                             style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"
-                        >${this.escapeHtml(trainerInfo.bio || '')}</textarea>
+                        >${this.escapeHtml(global.trainer_bio || trainerInfo.bio || '')}</textarea>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            This will be displayed along with your LinkedIn headline (if connected via OAuth). Character limit: 500.
+                        </small>
+                        <div id="global-bio-count" style="text-align: right; color: #666; font-size: 12px; margin-top: 5px;"></div>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 20px;">
@@ -268,6 +350,21 @@ class TrainerAICoachPersonalization {
                         </label>
                     </div>
 
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input 
+                                type="checkbox" 
+                                id="global-auto-refresh" 
+                                ${global.auto_refresh_enabled === true ? 'checked' : ''}
+                                style="margin-right: 8px;"
+                            />
+                            <span>Enable automatic weekly refresh from LinkedIn</span>
+                        </label>
+                        <small style="color: #666; display: block; margin-top: 5px; margin-left: 24px;">
+                            Automatically refresh your LinkedIn data once per week
+                        </small>
+                    </div>
+
                     <button 
                         type="submit" 
                         class="btn btn-primary"
@@ -276,6 +373,98 @@ class TrainerAICoachPersonalization {
                         Save Global Settings
                     </button>
                 </form>
+            </div>
+        `;
+    }
+
+    /**
+     * Render LinkedIn connection section
+     * @param {Object} personalization - Personalization object
+     * @param {string} prefix - Prefix for form element IDs ('global' or course ID)
+     * @returns {string} HTML for LinkedIn connection section
+     */
+    renderLinkedInConnectionSection(personalization, prefix) {
+        const isConnected = personalization.linkedin_profile_id && 
+                           personalization.linkedin_extraction_status === 'success';
+        const status = personalization.linkedin_extraction_status || 'pending';
+        const trainerInfo = personalization.trainer_info || {};
+        const linkedinName = trainerInfo.name || '';
+        const lastRefreshed = personalization.last_refreshed_at 
+            ? new Date(personalization.last_refreshed_at).toLocaleString() 
+            : null;
+        const linkedinUrl = personalization.linkedin_profile_url || '';
+
+        return `
+            <div class="linkedin-connection-section" style="padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; background: #f9f9f9;">
+                ${isConnected ? `
+                    <div style="margin-bottom: 15px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                            <div>
+                                <span style="color: #28a745; font-weight: 600;">✓ Connected to LinkedIn</span>
+                                ${linkedinName ? `<div style="color: #666; font-size: 14px; margin-top: 5px;">Profile: ${this.escapeHtml(linkedinName)}</div>` : ''}
+                            </div>
+                            <button 
+                                type="button" 
+                                class="btn btn-link linkedin-disconnect-btn" 
+                                data-prefix="${prefix}"
+                                style="padding: 5px 10px; color: #dc3545; text-decoration: none; border: none; background: none; cursor: pointer; font-size: 14px;"
+                            >
+                                Disconnect
+                            </button>
+                        </div>
+                        ${lastRefreshed ? `
+                            <div style="color: #666; font-size: 12px; margin-bottom: 10px;">
+                                Last synced: ${lastRefreshed}
+                            </div>
+                        ` : ''}
+                        <div style="display: flex; gap: 10px;">
+                            <button 
+                                type="button" 
+                                class="btn btn-secondary linkedin-refresh-btn" 
+                                data-prefix="${prefix}"
+                                style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px;"
+                            >
+                                🔄 Refresh from LinkedIn
+                            </button>
+                        </div>
+                    </div>
+                ` : `
+                    <div>
+                        <button 
+                            type="button" 
+                            class="btn btn-primary linkedin-connect-btn" 
+                            data-prefix="${prefix}"
+                            style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;"
+                        >
+                            🔗 Connect with LinkedIn
+                        </button>
+                        <small style="color: #666; display: block; margin-top: 8px;">
+                            Connect your LinkedIn profile to automatically extract your name, headline, and photo
+                        </small>
+                        ${status === 'oauth_pending' ? `
+                            <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;">
+                                ⏳ Waiting for LinkedIn authorization...
+                            </div>
+                        ` : status === 'failed' ? `
+                            <div style="margin-top: 10px; padding: 10px; background: #f8d7da; border: 1px solid #dc3545; border-radius: 4px; color: #721c24;">
+                                ❌ Connection failed: ${this.escapeHtml(personalization.linkedin_extraction_error || 'Unknown error')}
+                            </div>
+                        ` : status === 'token_expired' ? `
+                            <div style="margin-top: 10px; padding: 10px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; color: #856404;">
+                                ⚠️ Connection expired. Please reconnect.
+                            </div>
+                        ` : ''}
+                    </div>
+                `}
+                ${isConnected && trainerInfo.headline ? `
+                    <div style="margin-top: 15px; padding: 10px; background: white; border-radius: 4px; border-left: 3px solid #007bff;">
+                        <div style="font-weight: 600; margin-bottom: 5px;">LinkedIn Headline:</div>
+                        <div style="color: #666; font-size: 14px;">${this.escapeHtml(trainerInfo.headline)}</div>
+                        <small style="color: #999; display: block; margin-top: 5px;">
+                            Full bio not available on free tier. You can add a manual bio below.
+                        </small>
+                    </div>
+                ` : ''}
             </div>
         `;
     }
@@ -331,7 +520,14 @@ class TrainerAICoachPersonalization {
 
                     <div class="form-group" style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: 600;">
-                            LinkedIn Profile URL
+                            LinkedIn Connection
+                        </label>
+                        ${this.renderLinkedInConnectionSection(personalization, course.id)}
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; font-weight: 600;">
+                            LinkedIn Profile URL (Optional - Manual Entry)
                         </label>
                         <input 
                             type="url" 
@@ -372,13 +568,18 @@ class TrainerAICoachPersonalization {
                     <div class="form-group" style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: 600;">
                             Bio
+                            <small style="color: #666; font-weight: normal;"> (Optional - supplements LinkedIn headline)</small>
                         </label>
                         <textarea 
                             class="form-control course-bio" 
                             rows="3"
+                            maxlength="500"
                             placeholder="Leave blank to use global setting"
                             style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; resize: vertical;"
-                        >${this.escapeHtml(trainerInfo.bio || '')}</textarea>
+                        >${this.escapeHtml(personalization.trainer_bio || trainerInfo.bio || '')}</textarea>
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            Character limit: 500
+                        </small>
                     </div>
 
                     <div class="form-group" style="margin-bottom: 15px;">
@@ -429,6 +630,183 @@ class TrainerAICoachPersonalization {
         courseForms.forEach(form => {
             form.addEventListener('submit', (e) => this.handleCourseSubmit(e));
         });
+
+        // LinkedIn connection buttons
+        const connectButtons = document.querySelectorAll('.linkedin-connect-btn');
+        connectButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => this.handleLinkedInConnect(e));
+        });
+
+        // LinkedIn refresh buttons
+        const refreshButtons = document.querySelectorAll('.linkedin-refresh-btn');
+        refreshButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => this.handleLinkedInRefresh(e));
+        });
+
+        // LinkedIn disconnect buttons
+        const disconnectButtons = document.querySelectorAll('.linkedin-disconnect-btn');
+        disconnectButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => this.handleLinkedInDisconnect(e));
+        });
+
+        // Bio character counter
+        const bioFields = document.querySelectorAll('textarea[id*="bio"], textarea.course-bio');
+        bioFields.forEach(field => {
+            field.addEventListener('input', (e) => this.updateBioCounter(e.target));
+            this.updateBioCounter(field); // Initial update
+        });
+
+        // Auto-refresh checkbox
+        const autoRefreshCheckbox = document.getElementById('global-auto-refresh');
+        if (autoRefreshCheckbox) {
+            autoRefreshCheckbox.addEventListener('change', (e) => {
+                this.handleAutoRefreshToggle(null, e.target.checked);
+            });
+        }
+    }
+
+    /**
+     * Update bio character counter
+     */
+    updateBioCounter(textarea) {
+        const length = textarea.value.length;
+        const maxLength = textarea.maxLength || 500;
+        const counterId = textarea.id ? `${textarea.id}-count` : null;
+        const counter = counterId ? document.getElementById(counterId) : 
+                       textarea.nextElementSibling?.querySelector('[id$="-count"]');
+        
+        if (counter) {
+            counter.textContent = `${length}/${maxLength} characters`;
+            counter.style.color = length > maxLength * 0.9 ? '#dc3545' : '#666';
+        }
+    }
+
+    /**
+     * Handle LinkedIn connect button click
+     */
+    async handleLinkedInConnect(e) {
+        e.preventDefault();
+        const prefix = e.target.dataset.prefix;
+        const courseId = prefix === 'global' ? null : prefix;
+
+        try {
+            const button = e.target;
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '⏳ Connecting...';
+
+            // Initiate OAuth flow
+            const result = await trainerPersonalizationService.connectLinkedIn(
+                this.currentUser.id,
+                courseId
+            );
+
+            // Redirect to LinkedIn authorization page
+            window.location.href = result.authorizationUrl;
+        } catch (error) {
+            console.error('[TrainerAICoachPersonalization] Error connecting LinkedIn:', error);
+            this.showMessage(`❌ Failed to connect LinkedIn: ${error.message}`, 'error');
+            e.target.disabled = false;
+            e.target.innerHTML = '🔗 Connect with LinkedIn';
+        }
+    }
+
+    /**
+     * Handle LinkedIn refresh button click
+     */
+    async handleLinkedInRefresh(e) {
+        e.preventDefault();
+        const prefix = e.target.dataset.prefix;
+        const courseId = prefix === 'global' ? null : prefix;
+
+        try {
+            const button = e.target;
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '⏳ Refreshing...';
+
+            this.showMessage('⏳ Refreshing LinkedIn data...', 'info');
+
+            // Refresh LinkedIn data
+            await trainerPersonalizationService.refreshLinkedInData(
+                this.currentUser.id,
+                courseId
+            );
+
+            // Reload personalizations
+            await this.loadPersonalizations();
+            this.render();
+
+            this.showMessage('✅ LinkedIn data refreshed successfully!', 'success');
+        } catch (error) {
+            console.error('[TrainerAICoachPersonalization] Error refreshing LinkedIn:', error);
+            this.showMessage(`❌ Failed to refresh LinkedIn data: ${error.message}`, 'error');
+        } finally {
+            e.target.disabled = false;
+            e.target.innerHTML = originalText;
+        }
+    }
+
+    /**
+     * Handle LinkedIn disconnect button click
+     */
+    async handleLinkedInDisconnect(e) {
+        e.preventDefault();
+        const prefix = e.target.dataset.prefix;
+        const courseId = prefix === 'global' ? null : prefix;
+
+        // Confirm disconnect
+        if (!confirm('Are you sure you want to disconnect LinkedIn? Your extracted data will be removed.')) {
+            return;
+        }
+
+        try {
+            const button = e.target;
+            button.disabled = true;
+            button.innerHTML = 'Disconnecting...';
+
+            this.showMessage('⏳ Disconnecting LinkedIn...', 'info');
+
+            // Disconnect LinkedIn
+            await trainerPersonalizationService.disconnectLinkedIn(
+                this.currentUser.id,
+                courseId
+            );
+
+            // Reload personalizations
+            await this.loadPersonalizations();
+            this.render();
+
+            this.showMessage('✅ LinkedIn disconnected successfully!', 'success');
+        } catch (error) {
+            console.error('[TrainerAICoachPersonalization] Error disconnecting LinkedIn:', error);
+            this.showMessage(`❌ Failed to disconnect LinkedIn: ${error.message}`, 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = 'Disconnect';
+        }
+    }
+
+    /**
+     * Handle auto-refresh toggle
+     */
+    async handleAutoRefreshToggle(courseId, enabled) {
+        try {
+            await trainerPersonalizationService.updatePersonalization(
+                this.currentUser.id,
+                courseId,
+                { auto_refresh_enabled: enabled }
+            );
+
+            this.showMessage(`✅ Auto-refresh ${enabled ? 'enabled' : 'disabled'}`, 'success');
+            
+            // Reload to show updated status
+            await this.loadPersonalizations();
+            this.render();
+        } catch (error) {
+            console.error('[TrainerAICoachPersonalization] Error toggling auto-refresh:', error);
+            this.showMessage(`❌ Failed to update auto-refresh: ${error.message}`, 'error');
+        }
     }
 
     /**
@@ -442,12 +820,14 @@ class TrainerAICoachPersonalization {
             course_id: null, // Global
             coach_name: document.getElementById('global-coach-name').value.trim(),
             linkedin_profile_url: document.getElementById('global-linkedin').value.trim() || null,
+            trainer_bio: document.getElementById('global-bio').value.trim() || null,
             trainer_info: {
                 expertise: document.getElementById('global-expertise').value.trim() || null,
                 years_experience: parseInt(document.getElementById('global-years').value) || null,
-                bio: document.getElementById('global-bio').value.trim() || null
+                bio: document.getElementById('global-bio').value.trim() || null // Legacy field
             },
             personalization_enabled: document.getElementById('global-enabled').checked,
+            auto_refresh_enabled: document.getElementById('global-auto-refresh')?.checked || false,
             share_level: document.getElementById('global-share-level').value
         };
 
@@ -480,10 +860,11 @@ class TrainerAICoachPersonalization {
             course_id: courseId,
             coach_name: form.querySelector('.course-coach-name').value.trim() || global.coach_name || null,
             linkedin_profile_url: form.querySelector('.course-linkedin').value.trim() || global.linkedin_profile_url || null,
+            trainer_bio: form.querySelector('.course-bio').value.trim() || null,
             trainer_info: {
                 expertise: form.querySelector('.course-expertise').value.trim() || globalTrainerInfo.expertise || null,
                 years_experience: parseInt(form.querySelector('.course-years').value) || globalTrainerInfo.years_experience || null,
-                bio: form.querySelector('.course-bio').value.trim() || globalTrainerInfo.bio || null
+                bio: form.querySelector('.course-bio').value.trim() || globalTrainerInfo.bio || null // Legacy field
             },
             personalization_enabled: true,
             share_level: form.querySelector('.course-share-level').value || global.share_level || 'full'
@@ -510,8 +891,10 @@ class TrainerAICoachPersonalization {
                 course_id: formData.course_id,
                 coach_name: formData.coach_name,
                 linkedin_profile_url: formData.linkedin_profile_url,
+                trainer_bio: formData.trainer_bio || null,
                 trainer_info: formData.trainer_info,
                 personalization_enabled: formData.personalization_enabled,
+                auto_refresh_enabled: formData.auto_refresh_enabled !== undefined ? formData.auto_refresh_enabled : null,
                 share_level: formData.share_level,
                 updated_at: new Date().toISOString()
             };

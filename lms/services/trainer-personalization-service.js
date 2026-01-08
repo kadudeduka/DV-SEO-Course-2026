@@ -6,6 +6,9 @@
  */
 
 import { supabaseClient } from './supabase-client.js';
+import { linkedinOAuthService } from './linkedin-oauth-service.js';
+import { linkedinDataExtractionService } from './linkedin-data-extraction-service.js';
+import { trainerPhotoStorageService } from './trainer-photo-storage-service.js';
 
 class TrainerPersonalizationService {
     constructor() {
@@ -286,6 +289,10 @@ class TrainerPersonalizationService {
 
         // Add trainer info based on share level
         if (shareLevel === 'name_expertise' || shareLevel === 'full') {
+            // Include LinkedIn headline if available
+            if (trainerInfo.headline) {
+                infoString += `Your professional headline: ${trainerInfo.headline}. `;
+            }
             if (trainerInfo.expertise) {
                 infoString += `Your expertise includes: ${trainerInfo.expertise}. `;
             }
@@ -295,7 +302,14 @@ class TrainerPersonalizationService {
         }
 
         if (shareLevel === 'full') {
-            if (trainerInfo.bio) {
+            // Include manual bio if available (preferred over headline)
+            if (personalization.trainer_bio) {
+                infoString += `About you: ${personalization.trainer_bio} `;
+            } else if (trainerInfo.headline) {
+                // Fallback to LinkedIn headline if manual bio not available
+                infoString += `About you: ${trainerInfo.headline} `;
+            } else if (trainerInfo.bio) {
+                // Legacy bio field
                 infoString += `About you: ${trainerInfo.bio} `;
             }
             if (personalization.linkedin_profile_url) {
@@ -408,6 +422,276 @@ class TrainerPersonalizationService {
             }
         } else {
             this.cache.clear();
+        }
+    }
+
+    /**
+     * Connect LinkedIn profile via OAuth
+     * @param {string} trainerId - Trainer user ID
+     * @param {string} courseId - Course ID (optional, null for global)
+     * @returns {Promise<{authorizationUrl: string, state: string}>}
+     */
+    async connectLinkedIn(trainerId, courseId = null) {
+        try {
+            // Check if trainer already has a LinkedIn connection (Decision 8: single connection only)
+            const { data: existing } = await supabaseClient
+                .from('ai_coach_trainer_personalization')
+                .select('linkedin_profile_id, linkedin_extraction_status')
+                .eq('trainer_id', trainerId)
+                .eq('course_id', courseId)
+                .single();
+
+            // If existing connection exists, will be replaced (OAuth will handle replacement)
+            if (existing && existing.linkedin_profile_id) {
+                console.log('[TrainerPersonalization] Trainer already has LinkedIn connection, will replace it');
+            }
+
+            // Initiate OAuth flow
+            const result = await linkedinOAuthService.initiateOAuth(trainerId, courseId);
+            
+            // Clear cache for this trainer/course
+            this.clearCache(courseId, null);
+            
+            return result;
+        } catch (error) {
+            console.error('[TrainerPersonalization] Error connecting LinkedIn:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Handle LinkedIn OAuth callback
+     * @param {string} code - Authorization code from LinkedIn
+     * @param {string} state - State token for CSRF validation
+     * @param {string} trainerId - Trainer user ID
+     * @param {string} courseId - Course ID (optional)
+     * @returns {Promise<Object>} Result with tokens and extracted data
+     */
+    async handleLinkedInCallback(code, state, trainerId, courseId = null) {
+        try {
+            // Exchange code for tokens
+            await linkedinOAuthService.handleOAuthCallback(code, state, trainerId, courseId);
+            
+            // Extract and store LinkedIn data
+            const extracted = await this.extractLinkedInData(trainerId, courseId);
+            
+            // Clear cache
+            this.clearCache(courseId, null);
+            
+            return {
+                success: true,
+                data: extracted
+            };
+        } catch (error) {
+            console.error('[TrainerPersonalization] Error handling LinkedIn callback:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Extract and store LinkedIn data
+     * @param {string} trainerId - Trainer user ID
+     * @param {string} courseId - Course ID (optional)
+     * @returns {Promise<Object>} Extracted data
+     */
+    async extractLinkedInData(trainerId, courseId = null) {
+        try {
+            // Extract data using extraction service
+            const extracted = await linkedinDataExtractionService.extractAndStore(trainerId, courseId);
+            
+            // Process photo if available
+            let photoUrl = null;
+            if (extracted.photoUrl) {
+                try {
+                    // Get existing photo URL if any
+                    const { data: existing } = await supabaseClient
+                        .from('ai_coach_trainer_personalization')
+                        .select('trainer_photo_url')
+                        .eq('trainer_id', trainerId)
+                        .eq('course_id', courseId)
+                        .single();
+
+                    // Process photo: download and upload to storage
+                    const photoResult = await trainerPhotoStorageService.processPhoto(
+                        extracted.photoUrl,
+                        trainerId,
+                        courseId,
+                        existing?.trainer_photo_url || null
+                    );
+
+                    photoUrl = photoResult.photoUrl;
+
+                    // Update database with photo URL
+                    await supabaseClient
+                        .from('ai_coach_trainer_personalization')
+                        .update({
+                            trainer_photo_url: photoUrl,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('trainer_id', trainerId)
+                        .eq('course_id', courseId);
+                } catch (photoError) {
+                    console.warn('[TrainerPersonalization] Error processing photo:', photoError.message);
+                    // Continue even if photo processing fails
+                }
+            }
+
+            // Clear cache
+            this.clearCache(courseId, null);
+
+            return {
+                ...extracted,
+                photoUrl
+            };
+        } catch (error) {
+            console.error('[TrainerPersonalization] Error extracting LinkedIn data:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Refresh LinkedIn data manually
+     * @param {string} trainerId - Trainer user ID
+     * @param {string} courseId - Course ID (optional)
+     * @returns {Promise<Object>} Refreshed data
+     */
+    async refreshLinkedInData(trainerId, courseId = null) {
+        try {
+            // Extract and store fresh data (will auto-refresh token if needed)
+            const extracted = await this.extractLinkedInData(trainerId, courseId);
+            
+            // Clear cache
+            this.clearCache(courseId, null);
+            
+            return extracted;
+        } catch (error) {
+            console.error('[TrainerPersonalization] Error refreshing LinkedIn data:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Disconnect LinkedIn connection
+     * @param {string} trainerId - Trainer user ID
+     * @param {string} courseId - Course ID (optional)
+     * @returns {Promise<void>}
+     */
+    async disconnectLinkedIn(trainerId, courseId = null) {
+        try {
+            // Revoke access and clear tokens
+            await linkedinOAuthService.revokeAccess(trainerId, courseId);
+            
+            // Optionally delete photo from storage
+            const { data: personalization } = await supabaseClient
+                .from('ai_coach_trainer_personalization')
+                .select('trainer_photo_url')
+                .eq('trainer_id', trainerId)
+                .eq('course_id', courseId)
+                .single();
+
+            if (personalization?.trainer_photo_url) {
+                await trainerPhotoStorageService.deletePhotoFromStorage(
+                    personalization.trainer_photo_url
+                ).catch(error => {
+                    console.warn('[TrainerPersonalization] Failed to delete photo during disconnect:', error.message);
+                });
+            }
+
+            // Clear LinkedIn-specific fields
+            await supabaseClient
+                .from('ai_coach_trainer_personalization')
+                .update({
+                    trainer_photo_url: null,
+                    linkedin_profile_id: null,
+                    linkedin_data_extracted_at: null,
+                    linkedin_extraction_status: 'pending',
+                    linkedin_extraction_error: null,
+                    last_refreshed_at: null,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('trainer_id', trainerId)
+                .eq('course_id', courseId);
+
+            // Clear cache
+            this.clearCache(courseId, null);
+            
+            console.log('[TrainerPersonalization] Successfully disconnected LinkedIn for trainer:', trainerId);
+        } catch (error) {
+            console.error('[TrainerPersonalization] Error disconnecting LinkedIn:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Get trainer personalization with LinkedIn data
+     * Updates existing method to include LinkedIn fields
+     * @param {string} trainerId - Trainer user ID
+     * @param {string} courseId - Course ID (optional)
+     * @returns {Promise<Object|null>} Personalization object with LinkedIn data
+     */
+    async getTrainerPersonalization(trainerId, courseId = null) {
+        const personalization = await this.getPersonalizationForCourse(courseId, null);
+        
+        if (!personalization || personalization.trainer_id !== trainerId) {
+            return null;
+        }
+        
+        return personalization;
+    }
+
+    /**
+     * Update trainer personalization (including manual bio)
+     * @param {string} trainerId - Trainer user ID
+     * @param {string} courseId - Course ID (optional)
+     * @param {Object} updates - Fields to update
+     * @returns {Promise<Object>} Updated personalization
+     */
+    async updatePersonalization(trainerId, courseId, updates) {
+        try {
+            const updateData = {
+                ...updates,
+                updated_at: new Date().toISOString()
+            };
+
+            // If trainer_bio is being updated, also update trainer_info JSONB
+            if (updates.trainer_bio !== undefined) {
+                const { data: existing } = await supabaseClient
+                    .from('ai_coach_trainer_personalization')
+                    .select('trainer_info')
+                    .eq('trainer_id', trainerId)
+                    .eq('course_id', courseId)
+                    .single();
+
+                const existingInfo = existing?.trainer_info || {};
+                updateData.trainer_info = {
+                    ...existingInfo,
+                    bio: updates.trainer_bio || null
+                };
+            }
+
+            const { data, error } = await supabaseClient
+                .from('ai_coach_trainer_personalization')
+                .upsert({
+                    trainer_id: trainerId,
+                    course_id: courseId,
+                    ...updateData
+                }, {
+                    onConflict: 'trainer_id,course_id'
+                })
+                .select()
+                .single();
+
+            if (error) {
+                throw new Error(`Failed to update personalization: ${error.message}`);
+            }
+
+            // Clear cache
+            this.clearCache(courseId, null);
+
+            return data;
+        } catch (error) {
+            console.error('[TrainerPersonalization] Error updating personalization:', error);
+            throw error;
         }
     }
 }

@@ -16,6 +16,7 @@ import { courseService } from '../services/course-service.js';
 import { router } from '../core/router.js';
 import Header from './header.js';
 import ReferenceLink from './ai-coach/shared/reference-link.js';
+import TrainerInfo from './ai-coach/trainer-info.js';
 import { supabaseClient } from '../services/supabase-client.js';
 
 class CoachAIPage {
@@ -70,6 +71,9 @@ class CoachAIPage {
         // Load query history
         await this.loadQueryHistory();
 
+        // Load and render trainer info
+        await this.renderTrainerInfo();
+
         // If queryId is provided in params, open that query
         if (params.queryId) {
             await this.selectQuery(params.queryId);
@@ -119,6 +123,10 @@ class CoachAIPage {
                     <!-- Left Sidebar: Query List -->
                     <div class="coach-sidebar">
                         <div class="sidebar-header">
+                            <!-- Trainer Info Section -->
+                            <div id="trainer-info-container">
+                                <!-- Trainer info will be rendered here -->
+                            </div>
                             <div class="search-box">
                                 <input 
                                     type="text" 
@@ -185,6 +193,24 @@ class CoachAIPage {
                 this.showAskQuestionForm();
             });
         });
+    }
+
+    /**
+     * Render trainer info in sidebar
+     */
+    async renderTrainerInfo() {
+        const container = document.getElementById('trainer-info-container');
+        if (!container || !this.courseId) {
+            return;
+        }
+
+        try {
+            const trainerInfo = new TrainerInfo(container);
+            await trainerInfo.render(this.courseId, this.currentUser?.id);
+        } catch (error) {
+            console.error('[CoachAIPage] Error rendering trainer info:', error);
+            // Don't block page render if trainer info fails
+        }
     }
 
     /**
@@ -259,22 +285,33 @@ class CoachAIPage {
             const hasResponse = query.responses && query.responses.length > 0;
             const latestResponse = hasResponse ? query.responses[0] : null;
             const date = new Date(query.createdAt);
-            const dateStr = date.toLocaleDateString();
-            const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const dateStr = date.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+
+            // Clean response text for preview (remove markdown, emojis)
+            let responsePreview = '';
+            if (latestResponse && latestResponse.answer) {
+                responsePreview = latestResponse.answer
+                    .replace(/\*\*(.*?)\*\*/g, '$1') // Remove bold markdown
+                    .replace(/\*(.*?)\*/g, '$1') // Remove italic markdown
+                    .replace(/#{1,6}\s/g, '') // Remove headers
+                    .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1') // Remove links
+                    .replace(/🤖|🔍/g, '') // Remove emojis
+                    .trim();
+            }
 
             return `
                 <div class="query-item ${this.selectedQuery?.id === query.id ? 'active' : ''}" 
                      data-query-id="${query.id}">
                     <div class="query-item-header">
-                        <div class="query-preview">${this.truncateText(query.question, 60)}</div>
+                        <div class="query-preview">${this.escapeHtml(query.question)}</div>
                         <div class="query-meta">
                             <span class="query-date">${dateStr}</span>
-                            ${hasResponse ? '<span class="query-status success">✓</span>' : '<span class="query-status pending">⏳</span>'}
+                            ${hasResponse ? '<span class="query-status success" title="Answered">✓</span>' : '<span class="query-status pending" title="Pending">⏳</span>'}
                         </div>
                     </div>
-                    ${latestResponse ? `
+                    ${responsePreview ? `
                         <div class="query-response-preview">
-                            ${this.truncateText(latestResponse.answer, 80)}
+                            ${this.escapeHtml(this.truncateText(responsePreview, 100))}
                         </div>
                     ` : ''}
                 </div>

@@ -63,6 +63,14 @@ const SUPABASE_ANON_KEY = getConfigValue('SUPABASE_ANON_KEY') || '';
 const SUPABASE_SERVICE_KEY = getConfigValue('SUPABASE_SERVICE_KEY') || '';
 const OPENAI_API_KEY = getConfigValue('OPENAI_API_KEY') || '';
 
+// LinkedIn Configuration
+const LINKEDIN_CLIENT_ID = getConfigValue('LINKEDIN_CLIENT_ID') || '';
+const LINKEDIN_CLIENT_SECRET = getConfigValue('LINKEDIN_CLIENT_SECRET') || '';
+const LINKEDIN_REDIRECT_URI = getConfigValue('LINKEDIN_REDIRECT_URI') || '';
+// LinkedIn token encryption key (generate once and store securely)
+// For development, use a simple key. For production, use environment variable.
+const LINKEDIN_ENCRYPTION_KEY = getConfigValue('LINKEDIN_ENCRYPTION_KEY') || 'dv-linkedin-encryption-key-2025-change-in-production';
+
 // Configuration object
 const config = {
     supabase: {
@@ -74,6 +82,13 @@ const config = {
     openai: {
         apiKey: OPENAI_API_KEY,
         isConfigured: !!OPENAI_API_KEY
+    },
+    linkedin: {
+        clientId: LINKEDIN_CLIENT_ID,
+        clientSecret: LINKEDIN_CLIENT_SECRET,
+        redirectUri: LINKEDIN_REDIRECT_URI,
+        encryptionKey: LINKEDIN_ENCRYPTION_KEY,
+        isConfigured: !!(LINKEDIN_CLIENT_ID && LINKEDIN_CLIENT_SECRET && LINKEDIN_REDIRECT_URI)
     },
     // Feature flags
     features: {

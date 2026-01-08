@@ -82,6 +82,12 @@ window.LMS_CONFIG = {
     // OpenAI Configuration
     OPENAI_API_KEY: '${env.OPENAI_API_KEY || ''}',
     
+    // LinkedIn Configuration
+    LINKEDIN_CLIENT_ID: '${env.LINKEDIN_CLIENT_ID || ''}',
+    LINKEDIN_CLIENT_SECRET: '${env.LINKEDIN_CLIENT_SECRET || ''}',
+    LINKEDIN_REDIRECT_URI: '${env.LINKEDIN_REDIRECT_URI || ''}',
+    LINKEDIN_ENCRYPTION_KEY: '${env.LINKEDIN_ENCRYPTION_KEY || ''}',
+    
     // Admin Credentials
     ADMIN_USERNAME: '${env.ADMIN_USERNAME || ''}',
     ADMIN_PASSWORD: '${env.ADMIN_PASSWORD || ''}',
