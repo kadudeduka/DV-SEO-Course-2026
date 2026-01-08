@@ -267,24 +267,32 @@ class LinkedInOAuthService {
         }
 
         // Validate state token
-        // Handle null course_id properly - use is('null') for null values
+        // First, try to find a record that matches both trainer_id and state token
+        // This is more reliable than filtering by course_id first
         let query = supabaseClient
             .from('ai_coach_trainer_personalization')
-            .select('linkedin_oauth_state')
-            .eq('trainer_id', trainerId);
+            .select('linkedin_oauth_state, course_id')
+            .eq('trainer_id', trainerId)
+            .eq('linkedin_oauth_state', state)
+            .limit(1);
         
-        if (courseId === null) {
-            query = query.is('course_id', null);
-        } else {
+        // If courseId is specified, also filter by it
+        if (courseId !== null) {
             query = query.eq('course_id', courseId);
+        } else {
+            // For null course_id, filter for null values
+            query = query.is('course_id', null);
         }
         
-        const { data: personalization, error: fetchError } = await query.maybeSingle();
+        const { data: personalizations, error: fetchError } = await query;
 
         if (fetchError) {
             console.error('[LinkedInOAuth] Error fetching personalization record:', fetchError);
             throw new Error(`OAuth state validation failed: ${fetchError.message}`);
         }
+        
+        // Check if we found a matching record
+        const personalization = personalizations && personalizations.length > 0 ? personalizations[0] : null;
         
         if (!personalization) {
             // Record doesn't exist - this can happen if OAuth was initiated in a different session
@@ -314,13 +322,11 @@ class LinkedInOAuthService {
             }
             
             // Record created with state, proceed with token exchange
-            // The state is already set in the record we just created, so validation will pass
+            // The state is already set in the record we just created
             console.log('[LinkedInOAuth] Personalization record created with state, proceeding with token exchange...');
         } else {
-            // Record exists, validate state
-            if (personalization.linkedin_oauth_state !== state) {
-                throw new Error('OAuth state validation failed: State token mismatch');
-            }
+            // Record exists with matching state (we filtered by state in the query, so it's already validated)
+            console.log('[LinkedInOAuth] State validation successful, proceeding with token exchange...');
         }
 
         if (personalization.linkedin_oauth_state !== state) {
