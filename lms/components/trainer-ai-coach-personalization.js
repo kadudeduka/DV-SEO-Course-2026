@@ -157,33 +157,81 @@ class TrainerAICoachPersonalization {
                 // Handle WordPress callback format
                 if (authType === 'linkedin' && wpToken && wpUid) {
                     console.log('[TrainerAICoachPersonalization] WordPress callback detected. LinkedIn OAuth was handled server-side.');
+                    console.log('[TrainerAICoachPersonalization] WordPress token:', wpToken, 'UID:', wpUid);
+                    
                     // WordPress has already handled the OAuth exchange
-                    // We need to extract LinkedIn data using the token from WordPress
-                    // For now, show a message that manual extraction may be needed
-                    this.showMessage('⏳ LinkedIn connection detected. Extracting profile data...', 'info');
+                    // The WordPress token is for WordPress authentication, not LinkedIn OAuth
+                    // We need to check if WordPress stored LinkedIn tokens in our database
+                    // or if we need to fetch them from WordPress API
+                    
+                    this.showMessage('⏳ LinkedIn connection detected. Processing...', 'info');
                     
                     try {
-                        // Try to extract LinkedIn data (this will use stored tokens if available)
-                        // If WordPress handled the OAuth, tokens should be stored in the database
+                        // First, clear the oauth_pending status since WordPress handled the OAuth
+                        // Update all personalization records for this trainer to clear oauth_pending
+                        const { error: updateError } = await supabaseClient
+                            .from('ai_coach_trainer_personalization')
+                            .update({
+                                linkedin_extraction_status: null, // Clear oauth_pending
+                                linkedin_oauth_state: null,
+                                updated_at: new Date().toISOString()
+                            })
+                            .eq('trainer_id', this.currentUser.id)
+                            .eq('linkedin_extraction_status', 'oauth_pending');
+                        
+                        if (updateError) {
+                            console.warn('[TrainerAICoachPersonalization] Error clearing oauth_pending status:', updateError);
+                        }
+                        
+                        // Reload personalizations to get updated status
                         await this.loadPersonalizations();
                         
-                        // Check if we have LinkedIn data
-                        const hasLinkedInData = this.personalizations.some(p => 
-                            p.linkedin_extraction_status === 'success' || 
+                        // Check if we have LinkedIn tokens stored (WordPress might have stored them)
+                        const hasLinkedInTokens = this.personalizations.some(p => 
                             p.linkedin_access_token
                         );
                         
-                        if (hasLinkedInData) {
-                            // Try to refresh/extract data
+                        if (hasLinkedInTokens) {
+                            // Try to extract LinkedIn data using stored tokens
+                            console.log('[TrainerAICoachPersonalization] LinkedIn tokens found, extracting profile data...');
                             await trainerPersonalizationService.extractLinkedInData(this.currentUser.id, null);
                             await this.loadPersonalizations();
                             this.render();
                             this.showMessage('✅ LinkedIn connected successfully! Your profile data has been extracted.', 'success');
                         } else {
-                            this.showMessage('⚠️ LinkedIn connection detected, but data extraction may need to be triggered manually. Please check your profile settings.', 'info');
+                            // WordPress handled OAuth but tokens aren't in our database
+                            // This means WordPress is storing tokens separately
+                            // We need to either:
+                            // 1. Have WordPress store tokens in our DB (requires WordPress plugin update)
+                            // 2. Fetch tokens from WordPress API (requires WordPress API endpoint)
+                            // 3. Show message that manual setup is needed
+                            console.warn('[TrainerAICoachPersonalization] LinkedIn OAuth completed via WordPress, but tokens not found in database.');
+                            console.warn('[TrainerAICoachPersonalization] WordPress may be storing tokens separately. Manual extraction may be needed.');
+                            
+                            // Clear the pending status so the UI doesn't show "waiting"
+                            this.render();
+                            this.showMessage('⚠️ LinkedIn authorization completed, but profile data extraction may need to be done manually. Please use "Refresh LinkedIn Data" button if available.', 'warning');
                         }
                     } catch (error) {
                         console.error('[TrainerAICoachPersonalization] Error processing WordPress callback:', error);
+                        
+                        // Clear oauth_pending status even on error to prevent stuck state
+                        try {
+                            await supabaseClient
+                                .from('ai_coach_trainer_personalization')
+                                .update({
+                                    linkedin_extraction_status: null,
+                                    linkedin_oauth_state: null,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('trainer_id', this.currentUser.id)
+                                .eq('linkedin_extraction_status', 'oauth_pending');
+                        } catch (clearError) {
+                            console.error('[TrainerAICoachPersonalization] Error clearing oauth_pending:', clearError);
+                        }
+                        
+                        await this.loadPersonalizations();
+                        this.render();
                         this.showMessage('⚠️ LinkedIn connection detected, but data extraction failed. Please try refreshing or reconnecting.', 'warning');
                     }
                     return;
