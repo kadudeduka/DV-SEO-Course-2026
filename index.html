@@ -1140,6 +1140,33 @@
             }
         })();
         
+        // Handle LinkedIn OAuth callback globally
+        // If OAuth parameters are present, redirect to personalization page
+        (async () => {
+            try {
+                const urlParams = new URLSearchParams(window.location.search);
+                const code = urlParams.get('code');
+                const state = urlParams.get('state');
+                const error = urlParams.get('error');
+                
+                // Check if this is a LinkedIn OAuth callback
+                if (code || error) {
+                    console.log('[App] LinkedIn OAuth callback detected, redirecting to personalization page...');
+                    
+                    // Build redirect URL with OAuth parameters
+                    const redirectUrl = new URL(window.location.href);
+                    redirectUrl.hash = '/trainer/ai-coach-personalization';
+                    // Keep OAuth parameters in query string for the personalization page to process
+                    
+                    // Redirect to personalization page
+                    window.location.href = redirectUrl.toString();
+                    return;
+                }
+            } catch (error) {
+                console.error('[App] Error handling OAuth callback:', error);
+            }
+        })();
+        
         // Handle initial route if hash is already set
         if (window.location.hash) {
             console.log('[App] Initial hash:', window.location.hash);
