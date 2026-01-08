@@ -123,15 +123,23 @@ class TrainerAICoachPersonalization {
     async handleOAuthCallbackIfPresent() {
         try {
             const urlParams = new URLSearchParams(window.location.search);
-            const code = urlParams.get('code');
-            const state = urlParams.get('state');
-            const error = urlParams.get('error');
-            const errorDescription = urlParams.get('error_description');
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            
+            // Check for standard OAuth callback (code & state)
+            const code = urlParams.get('code') || hashParams.get('code');
+            const state = urlParams.get('state') || hashParams.get('state');
+            const error = urlParams.get('error') || hashParams.get('error');
+            const errorDescription = urlParams.get('error_description') || hashParams.get('error_description');
+            
+            // Check for WordPress callback format (auth=linkedin&token=...&uid=...)
+            const authType = urlParams.get('auth') || hashParams.get('auth');
+            const wpToken = urlParams.get('token') || hashParams.get('token');
+            const wpUid = urlParams.get('uid') || hashParams.get('uid');
 
             // Check if this is a LinkedIn OAuth callback
-            if (code || error) {
+            if (code || error || (authType === 'linkedin' && wpToken)) {
                 // Remove OAuth params from URL
-                const newUrl = window.location.pathname + window.location.hash;
+                const newUrl = window.location.pathname + (window.location.hash.split('?')[0] || '');
                 window.history.replaceState({}, document.title, newUrl);
 
                 if (error) {
@@ -146,14 +154,48 @@ class TrainerAICoachPersonalization {
                     return;
                 }
 
+                // Handle WordPress callback format
+                if (authType === 'linkedin' && wpToken && wpUid) {
+                    console.log('[TrainerAICoachPersonalization] WordPress callback detected. LinkedIn OAuth was handled server-side.');
+                    // WordPress has already handled the OAuth exchange
+                    // We need to extract LinkedIn data using the token from WordPress
+                    // For now, show a message that manual extraction may be needed
+                    this.showMessage('⏳ LinkedIn connection detected. Extracting profile data...', 'info');
+                    
+                    try {
+                        // Try to extract LinkedIn data (this will use stored tokens if available)
+                        // If WordPress handled the OAuth, tokens should be stored in the database
+                        await this.loadPersonalizations();
+                        
+                        // Check if we have LinkedIn data
+                        const hasLinkedInData = this.personalizations.some(p => 
+                            p.linkedin_extraction_status === 'success' || 
+                            p.linkedin_access_token
+                        );
+                        
+                        if (hasLinkedInData) {
+                            // Try to refresh/extract data
+                            await trainerPersonalizationService.extractLinkedInData(this.currentUser.id, null);
+                            await this.loadPersonalizations();
+                            this.render();
+                            this.showMessage('✅ LinkedIn connected successfully! Your profile data has been extracted.', 'success');
+                        } else {
+                            this.showMessage('⚠️ LinkedIn connection detected, but data extraction may need to be triggered manually. Please check your profile settings.', 'info');
+                        }
+                    } catch (error) {
+                        console.error('[TrainerAICoachPersonalization] Error processing WordPress callback:', error);
+                        this.showMessage('⚠️ LinkedIn connection detected, but data extraction failed. Please try refreshing or reconnecting.', 'warning');
+                    }
+                    return;
+                }
+
+                // Handle standard OAuth callback (code & state)
                 if (!code || !state) {
                     this.showMessage('❌ Invalid OAuth callback. Missing code or state.', 'error');
                     return;
                 }
 
                 // Determine course_id from state or use global (null)
-                // For now, we'll try to determine from current context
-                // You may need to store course_id in state token for better handling
                 const courseId = null; // Can be enhanced to extract from state
 
                 // Show loading
