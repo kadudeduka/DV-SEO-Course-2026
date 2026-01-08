@@ -210,9 +210,33 @@ class TrainerAICoachPersonalization {
                             console.warn('[TrainerAICoachPersonalization] LinkedIn OAuth completed via WordPress, but tokens not found in database.');
                             console.warn('[TrainerAICoachPersonalization] WordPress may be storing tokens separately. Manual extraction may be needed.');
                             
-                            // Clear the pending status so the UI doesn't show "waiting"
-                            this.render();
-                            this.showMessage('⚠️ LinkedIn authorization completed, but profile data extraction may need to be done manually. Please use "Refresh LinkedIn Data" button if available.', 'warning');
+                            // Try to extract data anyway - WordPress might have stored tokens asynchronously
+                            // or the extraction service might be able to fetch from WordPress
+                            try {
+                                console.log('[TrainerAICoachPersonalization] Attempting to extract LinkedIn data even without tokens in DB...');
+                                await trainerPersonalizationService.extractLinkedInData(this.currentUser.id, null);
+                                await this.loadPersonalizations();
+                                
+                                // Check again if we now have data
+                                const personalizationsArray = Object.values(this.personalizations || {});
+                                const nowHasData = personalizationsArray.some(p => 
+                                    p && (p.linkedin_extraction_status === 'success' || p.trainer_photo_url || p.trainer_name)
+                                );
+                                
+                                if (nowHasData) {
+                                    this.render();
+                                    this.showMessage('✅ LinkedIn connected successfully! Your profile data has been extracted.', 'success');
+                                } else {
+                                    // Clear the pending status so the UI doesn't show "waiting"
+                                    this.render();
+                                    this.showMessage('⚠️ LinkedIn authorization completed via WordPress. If your profile data doesn\'t appear, please click "Connect with LinkedIn" again to complete the setup, or contact support if the issue persists.', 'warning');
+                                }
+                            } catch (extractError) {
+                                console.error('[TrainerAICoachPersonalization] Error attempting extraction:', extractError);
+                                // Clear the pending status so the UI doesn't show "waiting"
+                                this.render();
+                                this.showMessage('⚠️ LinkedIn authorization completed via WordPress. If your profile data doesn\'t appear, please click "Connect with LinkedIn" again to complete the setup.', 'warning');
+                            }
                         }
                     } catch (error) {
                         console.error('[TrainerAICoachPersonalization] Error processing WordPress callback:', error);
