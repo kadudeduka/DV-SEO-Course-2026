@@ -724,6 +724,37 @@
     margin-bottom: 0;
 }
 
+.response-text h1,
+.response-text h2,
+.response-text h3 {
+    margin: 20px 0 12px 0;
+    font-weight: 600;
+    line-height: 1.4;
+    color: #111827;
+}
+
+.response-text h1 {
+    font-size: 1.5rem;
+    margin-top: 24px;
+}
+
+.response-text h2 {
+    font-size: 1.25rem;
+    margin-top: 20px;
+}
+
+.response-text h3 {
+    font-size: 1.1rem;
+    margin-top: 16px;
+    color: #374151;
+}
+
+.response-text h1:first-child,
+.response-text h2:first-child,
+.response-text h3:first-child {
+    margin-top: 0;
+}
+
 .response-text ul,
 .response-text ol {
     margin: 12px 0 12px 0;

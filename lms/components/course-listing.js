@@ -464,7 +464,7 @@ class CourseListing {
                     <div class="course-card-footer">
                         <a href="#/courses/${course.id}" class="btn btn-ghost btn-sm">View Details</a>
                         <a href="#/courses/${course.id}/learn" class="btn btn-primary btn-sm">${isCompleted ? 'Review' : isInProgress ? 'Continue' : 'Start'}</a>
-                        <a href="#/courses/${course.id}/coach/ai" class="btn btn-ghost btn-sm" title="AI Coach">💬</a>
+                        <a href="#/courses/${course.id}/coach/ai" class="btn btn-ghost btn-sm" title="Study Mentor">💬</a>
                     </div>
                 </div>
             </div>

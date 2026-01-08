@@ -256,6 +256,7 @@ class StartLearning {
                             <button class="btn btn-primary btn-large" id="resume-course-btn">
                                 Continue Learning
                             </button>
+                            <a href="#/courses/${this.courseId}/coach/ai" class="btn btn-secondary btn-large">Study Mentor</a>
                             <a href="#/courses/${this.courseId}" class="btn btn-secondary btn-large">
                                 View Course Overview
                             </a>

@@ -114,7 +114,7 @@ class CoachAIPage {
             <div class="coach-page-container">
                 <!-- Page Header -->
                 <div class="coach-page-header">
-                    <h1>AI Coach${this.course ? ` - ${this.course.title || this.courseId}` : ''}</h1>
+                    <h1>Study Mentor${this.course ? ` - ${this.course.title || this.courseId}` : ''}</h1>
                     <p class="page-subtitle">Ask questions and view your conversation history</p>
                 </div>
 
@@ -419,7 +419,7 @@ class CoachAIPage {
                 ${latestResponse ? `
                     <div class="query-response-card">
                         <div class="card-label">
-                            AI Coach Response
+                            Study Mentor Response
                             ${latestResponse.confidenceScore !== null ? `
                                 <span class="confidence-badge" style="background: ${this.getConfidenceColor(latestResponse.confidenceScore)}">
                                     ${(latestResponse.confidenceScore * 100).toFixed(0)}% confidence
@@ -597,7 +597,7 @@ class CoachAIPage {
         mainContent.innerHTML = `
             <div class="ask-question-form">
                 <div class="form-header">
-                    <h2>Ask AI Coach</h2>
+                    <h2>Ask Study Mentor</h2>
                     <p>Get instant answers about the course content</p>
                 </div>
                 <form id="ask-question-form">
@@ -731,12 +731,106 @@ class CoachAIPage {
      * @returns {string} Formatted HTML
      */
     formatResponse(text) {
-        // Simple markdown-like formatting
-        // In production, use a proper markdown renderer
-        return this.escapeHtml(text)
-            .replace(/\n/g, '<br>')
-            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-            .replace(/\*(.*?)\*/g, '<em>$1</em>');
+        if (!text) return '';
+
+        // Use the same formatting logic as MessageBubble for consistency
+        // Escape HTML first
+        let formatted = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+
+        // Handle "Key Points:" and "Next Steps:" as headers (even without ###)
+        // First, handle cases where they appear within bullet points (• Key Points: or - Key Points:)
+        formatted = formatted.replace(/[•\-*]\s*(Key Points|Next Steps):\s*/gi, '\n### $1\n');
+        
+        // Then handle standalone "Key Points:" and "Next Steps:" (not part of bullet points)
+        formatted = formatted.replace(/(?<!^[•\-*]\s)\b(Key Points|Next Steps):\s*/gi, '\n### $1\n');
+        
+        // Handle headers that might have content on the same line
+        formatted = formatted.replace(/###\s+([^:]+):\s*([^\n]+)/g, (match, header, content) => {
+            if (content.trim().match(/^[•\-*]\s/)) {
+                return `### ${header.trim()}\n${content.trim()}`;
+            }
+            return match;
+        });
+
+        // Convert markdown headers to HTML headers
+        formatted = formatted.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+        formatted = formatted.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+        formatted = formatted.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
+
+        // Split into paragraphs (double newlines or after headers)
+        formatted = formatted.replace(/\n\n+/g, '<PARAGRAPH_BREAK>');
+        formatted = formatted.replace(/\n(?=<h[1-3])/g, '<PARAGRAPH_BREAK>');
+        formatted = formatted.replace(/(<\/h[1-3]>)\n/g, '$1<PARAGRAPH_BREAK>');
+        formatted = formatted.replace(/(<\/h[1-3]>)</g, '$1<PARAGRAPH_BREAK>');
+
+        // Basic markdown: **bold**
+        formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+        // Basic markdown: *italic* (but not list markers)
+        formatted = formatted.replace(/(?<!^[-*]\s)\*(.*?)\*(?!\s)/g, '<em>$1</em>');
+
+        // Handle bullet points (• or - or *)
+        // First, handle lines that start with bullet markers
+        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>|<PARAGRAPH_BREAK><\/h[1-3]>)\s*([•\-*]\s+.+(?:\n[•\-*]\s+.+)*)/gm, (match, listContent) => {
+            let items = listContent.trim().split(/\n(?=[•\-*]\s+)/);
+            
+            // If we only have one item, check if it contains multiple list items on the same line
+            if (items.length === 1) {
+                const singleItem = items[0];
+                // Check for pattern: • item1 • item2 or - item1 - item2
+                const listPattern = /[•\-*]\s+[^•\-*]+(?=\s+[•\-*])/g;
+                const matches = singleItem.match(listPattern);
+                
+                if (matches && matches.length > 0) {
+                    // Split by list markers that appear after content
+                    items = singleItem.split(/(?<=[^\s])\s+[•\-*]\s+/).map((item, index) => {
+                        if (index === 0) {
+                            return item.trim();
+                        }
+                        // Add marker back for subsequent items (use the first marker found)
+                        const marker = singleItem.match(/^([•\-*])/)?.[1] || '•';
+                        return marker + ' ' + item.trim();
+                    });
+                }
+            }
+            
+            return '<ul>' + items.map(item => {
+                const content = item.replace(/^[•\-*]\s+/, '').trim();
+                return '<li>' + content + '</li>';
+            }).join('') + '</ul>';
+        });
+
+        // Numbered lists (1. item)
+        formatted = formatted.replace(/(?:^|<PARAGRAPH_BREAK>|<\/h[1-3]>|<PARAGRAPH_BREAK><\/h[1-3]>)\s*(\d+\.\s+.+(?:\n\d+\.\s+.+)*)/gm, (match, listContent) => {
+            const items = listContent.trim().split(/\n(?=\d+\.\s+)/);
+            return '<ol>' + items.map(item => {
+                const content = item.replace(/^\d+\.\s+/, '').trim();
+                return '<li>' + content + '</li>';
+            }).join('') + '</ol>';
+        });
+
+        // Convert paragraph breaks to actual paragraphs
+        const sections = formatted.split('<PARAGRAPH_BREAK>');
+        formatted = sections.map(section => {
+            const trimmed = section.trim();
+            if (!trimmed) return '';
+            
+            // Don't wrap if it's already a header, list, or empty
+            if (trimmed.startsWith('<h') || trimmed.startsWith('<ul') || trimmed.startsWith('<ol')) {
+                return trimmed;
+            }
+            
+            // Wrap in paragraph tag
+            return '<p>' + trimmed + '</p>';
+        }).filter(s => s).join('');
+
+        // Clean up any remaining line breaks (convert single \n to space within paragraphs)
+        formatted = formatted.replace(/(?<!<\/p>)\n(?!<[puloh])/g, ' ');
+
+        return formatted;
     }
 
     /**

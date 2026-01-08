@@ -60,7 +60,7 @@ class HelpCenter {
             'getting-started': [
                 {
                     question: 'How do I get started with the LMS?',
-                    answer: 'After logging in, you\'ll see your dashboard. Navigate to "Courses" to view available courses. Click on a course to start learning. Complete chapters and labs to progress through the course. Use the AI Coach widget on course pages to get instant help with your questions.'
+                    answer: 'After logging in, you\'ll see your dashboard. Navigate to "Courses" to view available courses. Click on a course to start learning. Complete chapters and labs to progress through the course. Use the Study Mentor widget on course pages to get instant help with your questions.'
                 },
                 {
                     question: 'How do I access my assigned courses?',
@@ -75,42 +75,42 @@ class HelpCenter {
                     answer: 'Your progress is automatically tracked as you complete chapters and labs. View your overall progress on the dashboard or within individual course pages.'
                 },
                 {
-                    question: 'What is the AI Coach?',
-                    answer: 'The AI Coach is your personal learning assistant available on all course pages. It can answer questions about course content, help you understand concepts, and guide you through labs without giving direct answers. The AI Coach is personalized by your trainer and optimized for each course.'
+                    question: 'What is the Study Mentor?',
+                    answer: 'The Study Mentor is your personal learning assistant available on all course pages. It can answer questions about course content, help you understand concepts, and guide you through labs without giving direct answers. The Study Mentor is personalized by your trainer and optimized for each course.'
                 }
             ],
             'ai-coach': [
                 {
-                    question: 'What is the AI Coach?',
-                    answer: 'The AI Coach is an intelligent learning assistant that appears on course pages (overview, learn, content, and lab pages). It can answer questions about course content, help you understand concepts, and provide guidance on labs. Each course has its own optimized AI Coach instance.'
+                    question: 'What is the Study Mentor?',
+                    answer: 'The Study Mentor is an intelligent learning assistant that appears on course pages (overview, learn, content, and lab pages). It can answer questions about course content, help you understand concepts, and provide guidance on labs. Each course has its own optimized Study Mentor instance.'
                 },
                 {
-                    question: 'How do I use the AI Coach?',
-                    answer: 'The AI Coach widget appears automatically on course pages. Simply type your question in the input box and click "Send". The AI Coach will provide a concise, helpful answer based on the course content. You can minimize the widget using the "−" button if you need more screen space.'
+                    question: 'How do I use the Study Mentor?',
+                    answer: 'The Study Mentor widget appears automatically on course pages. Simply type your question in the input box and click "Send". The Study Mentor will provide a concise, helpful answer based on the course content. You can minimize the widget using the "−" button if you need more screen space.'
                 },
                 {
-                    question: 'What can I ask the AI Coach?',
-                    answer: 'You can ask questions about course content, concepts, where to find specific information, or get help with labs. Examples: "What is on-page SEO?", "Where can I find information about keyword research?", or "I need help with the lab on Day 1". The AI Coach is designed to guide you without providing direct answers to lab questions.'
+                    question: 'What can I ask the Study Mentor?',
+                    answer: 'You can ask questions about course content, concepts, where to find specific information, or get help with labs. Examples: "What is on-page SEO?", "Where can I find information about keyword research?", or "I need help with the lab on Day 1". The Study Mentor is designed to guide you without providing direct answers to lab questions.'
                 },
                 {
-                    question: 'Can the AI Coach help me with labs?',
-                    answer: 'Yes! The AI Coach can guide you through labs when you\'re struggling, but it will not provide direct answers. It will help you understand concepts, point you to relevant course materials, and suggest approaches without doing the work for you.'
+                    question: 'Can the Study Mentor help me with labs?',
+                    answer: 'Yes! The Study Mentor can guide you through labs when you\'re struggling, but it will not provide direct answers. It will help you understand concepts, point you to relevant course materials, and suggest approaches without doing the work for you.'
                 },
                 {
-                    question: 'Why is my AI Coach personalized?',
-                    answer: 'Your trainer can personalize the AI Coach with their name, expertise, and teaching style. This makes the AI Coach feel more like your trainer is helping you. The coach name may appear as "{Trainer Name}\'s AI Coach" when personalization is enabled.'
+                    question: 'Why is my Study Mentor personalized?',
+                    answer: 'Your trainer can personalize the Study Mentor with their name, expertise, and teaching style. This makes the Study Mentor feel more like your trainer is helping you. The mentor name may appear as "{Trainer Name}\'s Study Mentor" when personalization is enabled.'
                 },
                 {
-                    question: 'What if the AI Coach doesn\'t know the answer?',
-                    answer: 'If the AI Coach has low confidence in its answer, your question will be automatically escalated to your trainer. You\'ll see a notice when this happens, and your trainer will review and respond to your question directly.'
+                    question: 'What if the Study Mentor doesn\'t know the answer?',
+                    answer: 'If the Study Mentor has low confidence in its answer, your question will be automatically escalated to your trainer. You\'ll see a notice when this happens, and your trainer will review and respond to your question directly.'
                 },
                 {
-                    question: 'How do I provide feedback on AI Coach responses?',
-                    answer: 'After each AI Coach response, you\'ll see "👍" (helpful) and "👎" (not helpful) buttons. Click these to provide feedback, which helps improve the AI Coach\'s responses over time.'
+                    question: 'How do I provide feedback on Study Mentor responses?',
+                    answer: 'After each Study Mentor response, you\'ll see "👍" (helpful) and "👎" (not helpful) buttons. Click these to provide feedback, which helps improve the Study Mentor\'s responses over time.'
                 },
                 {
-                    question: 'Where does the AI Coach appear?',
-                    answer: 'The AI Coach widget appears on all course learning pages: course overview, learn page, chapter content pages, and lab pages. It does not appear on other pages like "My Courses" or the main courses listing.'
+                    question: 'Where does the Study Mentor appear?',
+                    answer: 'The Study Mentor widget appears on all course learning pages: course overview, learn page, chapter content pages, and lab pages. It does not appear on other pages like "My Courses" or the main courses listing.'
                 }
             ],
             'courses': [
@@ -172,7 +172,7 @@ class HelpCenter {
                 },
                 {
                     question: 'How do I contact support?',
-                    answer: 'Use the contact form on this help center page, or reach out to your assigned trainer. For urgent issues, contact the system administrator. You can also use the AI Coach on course pages for instant help with course-related questions.'
+                    answer: 'Use the contact form on this help center page, or reach out to your assigned trainer. For urgent issues, contact the system administrator. You can also use the Study Mentor on course pages for instant help with course-related questions.'
                 }
             ],
             'trainer': [
@@ -248,7 +248,7 @@ class HelpCenter {
     getCategories() {
         const baseCategories = [
             { id: 'getting-started', label: 'Getting Started', icon: '🚀' },
-            { id: 'ai-coach', label: 'AI Coach', icon: '🤖' },
+            { id: 'ai-coach', label: 'Study Mentor', icon: '🤖' },
             { id: 'courses', label: 'Courses', icon: '📚' },
             { id: 'submissions', label: 'Submissions', icon: '📝' },
             { id: 'account', label: 'Account', icon: '👤' }
@@ -513,7 +513,7 @@ class HelpCenter {
                 if (this.currentUser?.role === 'learner') {
                     router.navigate('/courses/my-courses');
                 } else {
-                    alert('The AI Coach is available on course pages. Navigate to any course to access your AI Coach assistant.');
+                    alert('The Study Mentor is available on course pages. Navigate to any course to access your Study Mentor assistant.');
                 }
             });
         }

@@ -367,12 +367,12 @@ class MessageBubble {
     static _renderExpandButton(messageId, queryId = null) {
         const expandBtn = document.createElement('button');
         expandBtn.className = 'btn-expand-view';
-        expandBtn.setAttribute('aria-label', 'Expand view in Coach Section');
+        expandBtn.setAttribute('aria-label', 'Expand to full view');
         expandBtn.innerHTML = `
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M10 4L14 0M14 0H10M14 0V4M4 14L0 10M0 10H4M0 10V14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
-            <span>View in Coach</span>
+            <span>Full View</span>
         `;
         
         expandBtn.addEventListener('click', (e) => {

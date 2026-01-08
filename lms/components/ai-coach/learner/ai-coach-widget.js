@@ -260,7 +260,7 @@ class AICoachWidget {
                         ${this.currentCourseId ? `<div class="course-indicator">${this._getCourseName()}</div>` : ''}
                     </div>
                     <div class="ai-coach-widget-controls">
-                        <button id="view-coach-section-btn" class="btn-view-coach" aria-label="View in Coach Section" title="View in Coach Section">
+                        <button id="view-coach-section-btn" class="btn-view-coach" aria-label="Full View" title="Full View">
                             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                                 <path d="M8 2L2 8L8 14M2 8H14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                             </svg>
@@ -320,14 +320,14 @@ class AICoachWidget {
     async _getCoachName() {
         if (!this.currentCourseId) {
             console.warn('[AICoachWidget] No currentCourseId, returning default coach name');
-            return 'AI Coach';
+            return 'Study Mentor';
         }
 
         try {
             // Only use personalization for learners, not trainers or admins
             if (!this.currentUser || this.currentUser.role !== 'learner') {
                 console.log(`[AICoachWidget] User is not a learner (role: ${this.currentUser?.role || 'unknown'}), returning default coach name`);
-                return 'AI Coach';
+                return 'Study Mentor';
             }
 
             // Lazy load trainer personalization service
@@ -345,17 +345,17 @@ class AICoachWidget {
                 console.log(`[AICoachWidget] Retrieved coach name: "${coachName}" for learner ${learnerId} in course ${this.currentCourseId}`);
             } catch (error) {
                 console.error(`[AICoachWidget] Error fetching coach name:`, error);
-                coachName = 'AI Coach';
+                coachName = 'Study Mentor';
             }
             
-            if (!coachName || coachName === 'AI Coach') {
+            if (!coachName || coachName === 'Study Mentor') {
                 console.warn(`[AICoachWidget] Personalization may not be set up correctly for learner ${learnerId} in course ${this.currentCourseId}. Coach name: "${coachName}"`);
             }
             
             return coachName || 'AI Coach';
         } catch (error) {
             console.error('[AICoachWidget] Error getting coach name:', error);
-            return 'AI Coach';
+            return 'Study Mentor';
         }
     }
 
@@ -378,7 +378,7 @@ class AICoachWidget {
     _renderWelcomeMessage() {
         return `
             <div class="ai-coach-welcome">
-                <p>👋 Hi! I'm your AI Coach. I can help you with questions about this course.</p>
+                <p>👋 Hi! I'm your Study Mentor. I can help you with questions about this course.</p>
                 <p>Try asking:</p>
                 <ul>
                     <li>"What is on-page SEO?"</li>
@@ -552,7 +552,7 @@ class AICoachWidget {
     async handleSend() {
         // Check if on valid course page
         if (!this._isValidCoursePage()) {
-            alert('AI Coach is only available on course learning pages. Please navigate to a course to use it.');
+            alert('Study Mentor is only available on course learning pages. Please navigate to a course to use it.');
             this.hide();
             return;
         }
@@ -567,7 +567,7 @@ class AICoachWidget {
         if (!question) return;
 
         if (!this.currentCourseId) {
-            alert('Please navigate to a course page to use AI Coach.');
+            alert('Please navigate to a course page to use Study Mentor.');
             return;
         }
 
@@ -595,7 +595,7 @@ class AICoachWidget {
             const errorMessage = {
                 id: `error-${Date.now()}`,
                 type: 'ai',
-                answer: 'Sorry, AI Coach service is temporarily unavailable. Please try again later.',
+                answer: 'Sorry, Study Mentor service is temporarily unavailable. Please try again later.',
                 timestamp: new Date().toISOString()
             };
             this.messages.push(errorMessage);

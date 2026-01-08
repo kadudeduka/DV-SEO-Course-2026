@@ -169,7 +169,7 @@ class CourseDetail {
                             <a href="#/courses/${this.courseId}/learn" class="btn btn-primary btn-large">
                                 ${this.progressPercentage >= 100 ? 'Review Course' : this.progressPercentage > 0 ? 'Continue Learning' : 'Start Learning'}
                             </a>
-                            <a href="#/courses/${this.courseId}/coach/ai" class="btn btn-secondary btn-large">AI Coach</a>
+                            <a href="#/courses/${this.courseId}/coach/ai" class="btn btn-secondary btn-large">Study Mentor</a>
                             <a href="#/courses/my-courses" class="btn btn-secondary btn-large">Back to My Courses</a>
                         </div>
                     </div>
