@@ -187,8 +187,10 @@ class TrainerAICoachPersonalization {
                         await this.loadPersonalizations();
                         
                         // Check if we have LinkedIn tokens stored (WordPress might have stored them)
-                        const hasLinkedInTokens = this.personalizations.some(p => 
-                            p.linkedin_access_token
+                        // this.personalizations is an object, not an array
+                        const personalizationsArray = Object.values(this.personalizations || {});
+                        const hasLinkedInTokens = personalizationsArray.some(p => 
+                            p && p.linkedin_access_token
                         );
                         
                         if (hasLinkedInTokens) {
